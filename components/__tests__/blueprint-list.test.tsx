@@ -38,22 +38,16 @@ const mockBlueprints: Blueprint[] = [
 ]
 
 describe('BlueprintList', () => {
-  it('should render all blueprints', () => {
+  it('should render all blueprints with correct count', () => {
     render(<BlueprintList blueprints={mockBlueprints} />)
     expect(screen.getByText('Blueprint 1')).toBeInTheDocument()
     expect(screen.getByText('Blueprint 2')).toBeInTheDocument()
-  })
-
-  it('should render correct number of blueprint cards', () => {
-    render(<BlueprintList blueprints={mockBlueprints} />)
-    const cards = screen.getAllByTestId('blueprint-card')
-    expect(cards).toHaveLength(2)
+    expect(screen.getAllByTestId('blueprint-card')).toHaveLength(2)
   })
 
   it('should render empty state when no blueprints', () => {
     render(<BlueprintList blueprints={[]} />)
-    const cards = screen.queryAllByTestId('blueprint-card')
-    expect(cards).toHaveLength(0)
+    expect(screen.queryAllByTestId('blueprint-card')).toHaveLength(0)
   })
 })
 

@@ -42,26 +42,25 @@ describe('MonacoEditor', () => {
     ;(useInfraStore as unknown as jest.Mock).mockReturnValue(mockStore)
   })
 
-  it('should render empty state when no file is selected', () => {
-    render(<MonacoEditor />)
+  it('should render empty state, editor with content/metadata, and line/character counts', () => {
+    // Test empty state
+    const { rerender } = render(<MonacoEditor />)
     expect(screen.getByText('No file selected')).toBeInTheDocument()
     expect(screen.getByText(/Select a file from the file tree/i)).toBeInTheDocument()
-  })
-
-  it('should render editor with file content and metadata', () => {
+    
+    // Test editor with file content and metadata
     mockStore.files = [createFile({ path: 'infra/main.tf', content: 'resource "aws_vpc" "main" {}' })]
     mockStore.selectedFile = 'infra/main.tf'
-    render(<MonacoEditor />)
+    rerender(<MonacoEditor />)
     expect(screen.getByTestId('monaco-editor')).toBeInTheDocument()
     expect(screen.getByText('infra/main.tf')).toBeInTheDocument()
     expect(screen.getByText('HCL')).toBeInTheDocument()
     expect(screen.getByText('Ready')).toBeInTheDocument()
-  })
-
-  it('should display line and character counts', () => {
+    
+    // Test line and character counts
     mockStore.files = [createFile({ content: 'line 1\nline 2\nline 3' })]
     mockStore.selectedFile = 'test.tf'
-    render(<MonacoEditor />)
+    rerender(<MonacoEditor />)
     expect(screen.getByText(/3 lines/i)).toBeInTheDocument()
     expect(screen.getByText(/\d+ chars/i)).toBeInTheDocument()
   })
@@ -92,23 +91,22 @@ describe('MonacoEditor', () => {
   })
 
   describe('getFileIcon and getStatusText functions', () => {
-    it('should return null when file is undefined', () => {
+    it('should return null when file is undefined and handle all status types correctly', () => {
+      // Test undefined file
       render(<MonacoEditor />)
       expect(screen.getByText('No file selected')).toBeInTheDocument()
-    })
+      
+      const statusTests = [
+        { status: 'creating' as const, text: 'Creating...', hasSpinner: true },
+        { status: 'writing' as const, text: 'Writing...', hasSpinner: true },
+        { status: 'complete' as const, text: 'Ready', hasSpinner: false },
+        { status: 'unknown' as 'creating' | 'writing' | 'complete', text: 'Unknown', hasSpinner: false },
+      ]
 
-    const statusTests = [
-      { status: 'creating' as const, text: 'Creating...', hasSpinner: true },
-      { status: 'writing' as const, text: 'Writing...', hasSpinner: true },
-      { status: 'complete' as const, text: 'Ready', hasSpinner: false },
-      { status: 'unknown' as 'creating' | 'writing' | 'complete', text: 'Unknown', hasSpinner: false },
-    ]
-
-    statusTests.forEach(({ status, text, hasSpinner }) => {
-      it(`should handle ${status} status correctly`, () => {
+      statusTests.forEach(({ status, text, hasSpinner }) => {
         mockStore.files = [createFile({ status })]
         mockStore.selectedFile = 'test.tf'
-        const { container } = render(<MonacoEditor />)
+        const { container, unmount } = render(<MonacoEditor />)
         expect(screen.getByText(text)).toBeInTheDocument()
         if (hasSpinner) {
           expect(container.querySelectorAll('[class*="animate-spin"]').length).toBeGreaterThan(0)
@@ -117,6 +115,7 @@ describe('MonacoEditor', () => {
           expect(screen.getByText('Streaming')).toBeInTheDocument()
           expect(screen.getByText('Live streaming')).toBeInTheDocument()
         }
+        unmount()
       })
     })
   })
@@ -129,13 +128,13 @@ describe('MonacoEditor', () => {
       mockEditorInstance.setPosition.mockClear()
     })
 
-    it('should return early when file is undefined', async () => {
+    it('should handle early returns and empty content cases', async () => {
+      // Test early return when file is undefined
       render(<MonacoEditor />)
       await waitForMount()
       expect(mockEditorInstance.revealLine).not.toHaveBeenCalled()
-    })
-
-    it('should not scroll when status is writing but content is empty', async () => {
+      
+      // Test no scroll when status is writing but content is empty
       mockStore.files = [createFile({ content: '', status: 'writing' })]
       mockStore.selectedFile = 'test.tf'
       const { rerender } = render(<MonacoEditor />)
@@ -164,64 +163,51 @@ describe('MonacoEditor', () => {
       expect(mockEditorInstance.setPosition).toHaveBeenCalledWith({ lineNumber: 3, column: 1 })
     })
 
-    it('should not scroll when content length unchanged (covers else branch of line 79: hasNewContent = false)', async () => {
-      // Create a file object that we'll reuse to ensure same object reference
-      const fileWithContent = createFile({ content: 'line 1', status: 'writing' })
-      
-      // Start with initial content - this sets previousContentLength.current = 6 after editor mounts
-      mockStore.files = [fileWithContent]
-      mockStore.selectedFile = 'test.tf'
-      const { rerender } = render(<MonacoEditor />)
-      await waitForMount()
-      // Trigger useEffect again to ensure previousContentLength.current is set
-      rerender(<MonacoEditor />)
-      await waitForMount()
-
-      // At this point, previousContentLength.current should be 6 (length of 'line 1')
-      // Clear mocks to only check calls after second render with same content
-      mockEditorInstance.revealLine.mockClear()
-      mockEditorInstance.setPosition.mockClear()
-
-      // Update the same file object with same content - this should NOT trigger scroll
-      // because currentLength (6) <= previousContentLength.current (6)
-      fileWithContent.content = 'line 1' // Same content, same length
-      rerender(<MonacoEditor />)
-      await waitForMount()
-
-      // Verify scroll methods were NOT called when hasNewContent is false (else branch)
-      expect(mockEditorInstance.revealLine).not.toHaveBeenCalled()
-      expect(mockEditorInstance.setPosition).not.toHaveBeenCalled()
-    })
-
-    it('should not scroll when content length decreases (covers else branch of line 79: hasNewContent = false)', async () => {
-      // Start with initial content to set previousContentLength.current
+    it('should handle content changes: scroll on increase, no scroll on unchanged or decrease (covers hasNewContent branches)', async () => {
+      // Test scrolling when content increases (hasNewContent = true)
       mockStore.files = [createFile({ content: 'line 1', status: 'writing' })]
       mockStore.selectedFile = 'test.tf'
       const { rerender } = render(<MonacoEditor />)
       await waitForMount()
-
-      // Increase content to set previousContentLength.current to a higher value
+      
       mockStore.files = [createFile({ content: 'line 1\nline 2\nline 3', status: 'writing' })]
       rerender(<MonacoEditor />)
       await waitForMount()
-
-      // Clear mocks to only check calls after content decrease
+      expect(mockEditorInstance.revealLine).toHaveBeenCalledWith(3, 1)
+      expect(mockEditorInstance.setPosition).toHaveBeenCalledWith({ lineNumber: 3, column: 1 })
+      
+      // Test no scroll when content unchanged (hasNewContent = false, else branch)
+      const fileWithContent = createFile({ content: 'line 1', status: 'writing' })
+      mockStore.files = [fileWithContent]
       mockEditorInstance.revealLine.mockClear()
       mockEditorInstance.setPosition.mockClear()
-
-      // Decrease content length - hasNewContent will be false (covers else branch of line 79)
-      // currentLength (6) <= previousContentLength.current (18), so hasNewContent = false
+      rerender(<MonacoEditor />)
+      await waitForMount()
+      rerender(<MonacoEditor />)
+      await waitForMount()
+      fileWithContent.content = 'line 1' // Same content
+      mockEditorInstance.revealLine.mockClear()
+      mockEditorInstance.setPosition.mockClear()
+      rerender(<MonacoEditor />)
+      await waitForMount()
+      expect(mockEditorInstance.revealLine).not.toHaveBeenCalled()
+      expect(mockEditorInstance.setPosition).not.toHaveBeenCalled()
+      
+      // Test no scroll when content decreases (hasNewContent = false, else branch)
+      mockStore.files = [createFile({ content: 'line 1\nline 2\nline 3', status: 'writing' })]
+      rerender(<MonacoEditor />)
+      await waitForMount()
+      mockEditorInstance.revealLine.mockClear()
+      mockEditorInstance.setPosition.mockClear()
       mockStore.files = [createFile({ content: 'line 1', status: 'writing' })]
       rerender(<MonacoEditor />)
       await waitForMount()
-
-      // Verify scroll methods were NOT called when content decreases (else branch)
-      // The else branch of if (hasNewContent) should be taken
       expect(mockEditorInstance.revealLine).not.toHaveBeenCalled()
       expect(mockEditorInstance.setPosition).not.toHaveBeenCalled()
     })
 
-    it('should reset previousContentLength when status is complete', async () => {
+    it('should reset previousContentLength on complete status and not execute for non-writing/complete statuses', async () => {
+      // Test reset when status is complete
       mockStore.files = [createFile({ status: 'writing' })]
       mockStore.selectedFile = 'test.tf'
       const { rerender } = render(<MonacoEditor />)
@@ -230,14 +216,11 @@ describe('MonacoEditor', () => {
       mockStore.files = [createFile({ status: 'complete' })]
       rerender(<MonacoEditor />)
       await waitForMount()
-
       expect(screen.getByText('Ready')).toBeInTheDocument()
-    })
-
-    it('should not execute when status is neither writing nor complete', async () => {
+      
+      // Test no execution when status is neither writing nor complete
       mockStore.files = [createFile({ status: 'creating' })]
-      mockStore.selectedFile = 'test.tf'
-      const { rerender } = render(<MonacoEditor />)
+      rerender(<MonacoEditor />)
       await waitForMount()
 
       mockStore.files = [createFile({ content: 'more', status: 'creating' })]

@@ -1,6 +1,6 @@
+import { Blueprint } from '@/lib/blueprints'
 import { render, screen } from '@testing-library/react'
 import { BlueprintCard } from '../blueprint-card'
-import { Blueprint } from '@/lib/blueprints'
 
 jest.mock('next/link', () => {
   const MockLink = ({ children, href }: { children: React.ReactNode; href: string }) => (
@@ -25,82 +25,43 @@ const mockBlueprint: Blueprint = {
 }
 
 describe('BlueprintCard', () => {
-  it('should render blueprint name', () => {
+  it('should render all blueprint information and link correctly', () => {
     render(<BlueprintCard blueprint={mockBlueprint} index={0} />)
+    
+    // Basic content
     expect(screen.getByText('Test Blueprint')).toBeInTheDocument()
-  })
-
-  it('should render blueprint description', () => {
-    render(<BlueprintCard blueprint={mockBlueprint} index={0} />)
     expect(screen.getByText('Test description')).toBeInTheDocument()
-  })
-
-  it('should render cloud provider badge', () => {
-    render(<BlueprintCard blueprint={mockBlueprint} index={0} />)
-    const awsElements = screen.getAllByText('AWS')
-    expect(awsElements.length).toBeGreaterThan(0)
-  })
-
-  it('should render setup time', () => {
-    render(<BlueprintCard blueprint={mockBlueprint} index={0} />)
     expect(screen.getByText('5 minutes')).toBeInTheDocument()
-  })
-
-  it('should render cost', () => {
-    render(<BlueprintCard blueprint={mockBlueprint} index={0} />)
     expect(screen.getByText('$10/month')).toBeInTheDocument()
-  })
-
-  it('should render technologies', () => {
-    render(<BlueprintCard blueprint={mockBlueprint} index={0} />)
     expect(screen.getByText('Terraform')).toBeInTheDocument()
-    // AWS appears multiple times (badge and technology), so use getAllByText
-    const awsElements = screen.getAllByText('AWS')
-    expect(awsElements.length).toBeGreaterThan(0)
-  })
-
-  it('should render link to blueprint detail page', () => {
-    render(<BlueprintCard blueprint={mockBlueprint} index={0} />)
+    expect(screen.getByText('View Blueprint')).toBeInTheDocument()
+    
+    // Link
     const link = screen.getByRole('link')
     expect(link).toHaveAttribute('href', '/blueprints/test-blueprint')
+    
+    // Cloud provider badge
+    const awsElements = screen.getAllByText('AWS')
+    expect(awsElements.length).toBeGreaterThan(0)
   })
 
-  it('should render CTA button', () => {
-    render(<BlueprintCard blueprint={mockBlueprint} index={0} />)
-    expect(screen.getByText('View Blueprint')).toBeInTheDocument()
-  })
+  it('should apply correct theme based on cloud provider', () => {
+    const testCases = [
+      { provider: 'AWS', themeClass: 'from-orange' },
+      { provider: 'Google Cloud', themeClass: 'from-blue' },
+      { provider: 'Azure', themeClass: 'from-cyan' },
+      { provider: 'Unknown Cloud', themeClass: 'from-purple' },
+    ]
 
-  it('should apply AWS theme for AWS provider', () => {
-    render(<BlueprintCard blueprint={mockBlueprint} index={0} />)
-    const card = screen.getByText('Test Blueprint').closest('div')
-    // Check parent container for theme classes
-    const parentCard = card?.closest('[class*="from-orange"]')
-    expect(parentCard).toBeInTheDocument()
-  })
-
-  it('should apply Google Cloud theme for GCP provider', () => {
-    const gcpBlueprint = { ...mockBlueprint, cloudProvider: 'Google Cloud' }
-    render(<BlueprintCard blueprint={gcpBlueprint} index={0} />)
-    const card = screen.getByText('Test Blueprint').closest('div')
-    // Check parent container for theme classes
-    const parentCard = card?.closest('[class*="from-blue"]')
-    expect(parentCard).toBeInTheDocument()
-  })
-
-  it('should apply Azure theme for Azure provider', () => {
-    const azureBlueprint = { ...mockBlueprint, cloudProvider: 'Azure' }
-    render(<BlueprintCard blueprint={azureBlueprint} index={0} />)
-    const card = screen.getByText('Test Blueprint').closest('div')
-    const parentCard = card?.closest('[class*="from-cyan"]')
-    expect(parentCard).toBeInTheDocument()
-  })
-
-  it('should apply default theme for unknown provider', () => {
-    const unknownBlueprint = { ...mockBlueprint, cloudProvider: 'Unknown Cloud' }
-    render(<BlueprintCard blueprint={unknownBlueprint} index={0} />)
-    const card = screen.getByText('Test Blueprint').closest('div')
-    const parentCard = card?.closest('[class*="from-purple"]')
-    expect(parentCard).toBeInTheDocument()
+    testCases.forEach(({ provider, themeClass }) => {
+      const { unmount } = render(
+        <BlueprintCard blueprint={{ ...mockBlueprint, cloudProvider: provider }} index={0} />
+      )
+      const card = screen.getByText('Test Blueprint').closest('div')
+      const parentCard = card?.closest(`[class*="${themeClass}"]`)
+      expect(parentCard).toBeInTheDocument()
+      unmount()
+    })
   })
 })
 

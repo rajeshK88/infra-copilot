@@ -25,40 +25,33 @@ const mockResources = [
 ]
 
 describe('ResourceDocsCard', () => {
-  it('should render resource names', () => {
+  it('should render all resources with names, lines read, and status indicators', () => {
     render(<ResourceDocsCard resources={mockResources} />)
+    
+    // Check all resource names
     expect(screen.getByText('aws/db_instance')).toBeInTheDocument()
     expect(screen.getByText('random/password')).toBeInTheDocument()
     expect(screen.getByText('aws/s3_bucket')).toBeInTheDocument()
-  })
-
-  it('should display lines read for found resources', () => {
-    render(<ResourceDocsCard resources={mockResources} />)
+    
+    // Check lines read for found resources
     expect(screen.getByText('150 lines read')).toBeInTheDocument()
     expect(screen.getByText('50 lines read')).toBeInTheDocument()
-  })
-
-  it('should show found status with checkmark', () => {
-    render(<ResourceDocsCard resources={mockResources} />)
-    // Checkmarks are rendered as SVG icons (CheckCircle2)
-    // Just verify the resources are rendered
-    expect(screen.getByText('aws/db_instance')).toBeInTheDocument()
-    expect(screen.getByText('150 lines read')).toBeInTheDocument()
-  })
-
-  it('should show not-found status', () => {
-    render(<ResourceDocsCard resources={mockResources} />)
+    
+    // Check not-found status
     expect(screen.getByText('Docs not found')).toBeInTheDocument()
   })
 
-  it('should return null when resources array is empty', () => {
-    const { container } = render(<ResourceDocsCard resources={[]} />)
-    expect(container.firstChild).toBeNull()
-  })
+  it('should return null when resources is empty or undefined', () => {
+    const emptyCases = [
+      { resources: [] },
+      { resources: undefined as ResourceDoc[] | undefined },
+    ]
 
-  it('should return null when resources is undefined', () => {
-    const { container } = render(<ResourceDocsCard resources={undefined as ResourceDoc[] | undefined} />)
-    expect(container.firstChild).toBeNull()
+    emptyCases.forEach(({ resources }) => {
+      const { container, unmount } = render(<ResourceDocsCard resources={resources} />)
+      expect(container.firstChild).toBeNull()
+      unmount()
+    })
   })
 
   it('should handle resources without linesRead', () => {

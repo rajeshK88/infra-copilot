@@ -59,22 +59,19 @@ describe('MainLayout', () => {
     })
   })
 
-  it('should render chat panel', () => {
+  it('should render all main components (chat panel, file tree, Monaco editor)', () => {
     const { container } = render(<MainLayout blueprint={mockBlueprint} />)
     expect(container.querySelector('[data-testid="chat-panel"]')).toBeInTheDocument()
-  })
-
-  it('should render file tree', () => {
-    const { container } = render(<MainLayout blueprint={mockBlueprint} />)
     expect(container.querySelector('[data-testid="file-tree"]')).toBeInTheDocument()
-  })
-
-  it('should render Monaco editor', () => {
-    const { container } = render(<MainLayout blueprint={mockBlueprint} />)
     expect(container.querySelector('[data-testid="monaco-editor"]')).toBeInTheDocument()
   })
 
-  it('should display file count when files exist', () => {
+  it('should display file count and progress correctly', () => {
+    // Test no progress when no files
+    render(<MainLayout blueprint={mockBlueprint} />)
+    expect(screen.queryByText(/\d+\/\d+/)).not.toBeInTheDocument()
+    
+    // Test file count when all complete
     ;(useInfraStore as jest.Mock).mockImplementation((selector) => {
       const state = {
         files: [
@@ -84,11 +81,10 @@ describe('MainLayout', () => {
       }
       return selector ? selector(state) : state
     })
-    render(<MainLayout blueprint={mockBlueprint} />)
+    const { rerender } = render(<MainLayout blueprint={mockBlueprint} />)
     expect(screen.getByText('2/2')).toBeInTheDocument()
-  })
-
-  it('should display progress bar when files exist', () => {
+    
+    // Test progress bar when some files are writing
     ;(useInfraStore as jest.Mock).mockImplementation((selector) => {
       const state = {
         files: [
@@ -98,164 +94,95 @@ describe('MainLayout', () => {
       }
       return selector ? selector(state) : state
     })
-    render(<MainLayout blueprint={mockBlueprint} />)
+    rerender(<MainLayout blueprint={mockBlueprint} />)
     expect(screen.getByText('1/2')).toBeInTheDocument()
   })
 
-  it('should not display progress when no files', () => {
-    render(<MainLayout blueprint={mockBlueprint} />)
-    expect(screen.queryByText(/\d+\/\d+/)).not.toBeInTheDocument()
-  })
-
-  it('should filter invalid files from progress count', () => {
-    ;(useInfraStore as jest.Mock).mockImplementation((selector) => {
-      const state = {
+  it('should filter invalid files correctly (empty path, no extension, invalid extension)', () => {
+    const testCases = [
+      {
+        name: 'no extension',
         files: [
           { path: 'infra/main.tf', content: '', status: 'complete' },
-          { path: 'invalid', content: '', status: 'complete' }, // No extension
+          { path: 'invalid', content: '', status: 'complete' },
         ],
-      }
-      return selector ? selector(state) : state
-    })
-    render(<MainLayout blueprint={mockBlueprint} />)
-    expect(screen.getByText('1/1')).toBeInTheDocument()
-  })
-
-  it('should handle files with empty path', () => {
-    ;(useInfraStore as jest.Mock).mockImplementation((selector) => {
-      const state = {
+        expected: '1/1',
+      },
+      {
+        name: 'empty path',
         files: [
           { path: 'infra/main.tf', content: '', status: 'complete' },
-          { path: '', content: '', status: 'complete' }, // Empty path
+          { path: '', content: '', status: 'complete' },
         ],
-      }
-      return selector ? selector(state) : state
-    })
-    render(<MainLayout blueprint={mockBlueprint} />)
-    expect(screen.getByText('1/1')).toBeInTheDocument()
-  })
-
-  it('should handle files with no path parts', () => {
-    ;(useInfraStore as jest.Mock).mockImplementation((selector) => {
-      const state = {
+        expected: '1/1',
+      },
+      {
+        name: 'empty extension',
         files: [
           { path: 'infra/main.tf', content: '', status: 'complete' },
-          { path: 'main.tf', content: '', status: 'complete' }, // Root file (valid)
+          { path: 'infra/file.', content: '', status: 'complete' },
         ],
-      }
-      return selector ? selector(state) : state
-    })
-    render(<MainLayout blueprint={mockBlueprint} />)
-    expect(screen.getByText('2/2')).toBeInTheDocument()
-  })
-
-  it('should handle files with invalid extension', () => {
-    ;(useInfraStore as jest.Mock).mockImplementation((selector) => {
-      const state = {
+        expected: '1/1',
+      },
+      {
+        name: 'root file (valid)',
         files: [
           { path: 'infra/main.tf', content: '', status: 'complete' },
-          { path: 'infra/file.', content: '', status: 'complete' }, // Empty extension
+          { path: 'main.tf', content: '', status: 'complete' },
         ],
-      }
-      return selector ? selector(state) : state
-    })
-    render(<MainLayout blueprint={mockBlueprint} />)
-    expect(screen.getByText('1/1')).toBeInTheDocument()
-  })
+        expected: '2/2',
+      },
+    ]
 
-  it('should handle files with empty path parts', () => {
-    ;(useInfraStore as jest.Mock).mockImplementation((selector) => {
-      const state = {
-        files: [
-          { path: 'infra/main.tf', content: '', status: 'complete' },
-          { path: '', content: '', status: 'complete' }, // Empty path - should be filtered (line 21)
-        ],
-      }
-      return selector ? selector(state) : state
+    testCases.forEach(({ name, files, expected }) => {
+      ;(useInfraStore as jest.Mock).mockImplementation((selector) => {
+        const state = { files }
+        return selector ? selector(state) : state
+      })
+      const { unmount } = render(<MainLayout blueprint={mockBlueprint} />)
+      expect(screen.getByText(expected)).toBeInTheDocument()
+      unmount()
     })
-    render(<MainLayout blueprint={mockBlueprint} />)
-    // Empty path should be filtered (line 21: if (!path) return false)
-    expect(screen.getByText('1/1')).toBeInTheDocument()
   })
 
   describe('validFiles filter logic', () => {
-    it('should return false when path is empty after trim (line 21)', () => {
-      ;(useInfraStore as jest.Mock).mockImplementation((selector) => {
-        const state = {
+    it('should handle all edge cases and valid file paths correctly', () => {
+      const testCases = [
+        {
+          name: 'empty path after trim',
           files: [
             { path: 'infra/main.tf', content: '', status: 'complete' },
-            { path: '   ', content: '', status: 'complete' }, // Whitespace only
+            { path: '   ', content: '', status: 'complete' },
           ],
-        }
-        return selector ? selector(state) : state
-      })
-      render(<MainLayout blueprint={mockBlueprint} />)
-      expect(screen.getByText('1/1')).toBeInTheDocument()
-    })
-
-    it('should return false when parts.length === 0 after split and filter (line 23)', () => {
-      ;(useInfraStore as jest.Mock).mockImplementation((selector) => {
-        const state = {
+          expected: '1/1',
+        },
+        {
+          name: 'parts.length === 0 after split',
           files: [
             { path: 'infra/main.tf', content: '', status: 'complete' },
-            { path: '///', content: '', status: 'complete' }, // Only slashes
-            { path: '/', content: '', status: 'complete' }, // Single slash
+            { path: '///', content: '', status: 'complete' },
+            { path: '/', content: '', status: 'complete' },
           ],
-        }
-        return selector ? selector(state) : state
-      })
-      render(<MainLayout blueprint={mockBlueprint} />)
-      // After split('/').filter(Boolean), parts.length === 0, so should be filtered
-      expect(screen.getByText('1/1')).toBeInTheDocument()
-    })
-
-    it('should return false when lastPart does not include dot (line 25)', () => {
-      ;(useInfraStore as jest.Mock).mockImplementation((selector) => {
-        const state = {
+          expected: '1/1',
+        },
+        {
+          name: 'no extension',
           files: [
             { path: 'infra/main.tf', content: '', status: 'complete' },
-            { path: 'infra/noextension', content: '', status: 'complete' }, // No extension
+            { path: 'infra/noextension', content: '', status: 'complete' },
           ],
-        }
-        return selector ? selector(state) : state
-      })
-      render(<MainLayout blueprint={mockBlueprint} />)
-      expect(screen.getByText('1/1')).toBeInTheDocument()
-    })
-
-    it('should return false when extension is undefined (line 27)', () => {
-      ;(useInfraStore as jest.Mock).mockImplementation((selector) => {
-        const state = {
+          expected: '1/1',
+        },
+        {
+          name: 'empty extension',
           files: [
             { path: 'infra/main.tf', content: '', status: 'complete' },
-            { path: 'infra/file.', content: '', status: 'complete' }, // Empty extension
+            { path: 'infra/file.', content: '', status: 'complete' },
           ],
-        }
-        return selector ? selector(state) : state
-      })
-      render(<MainLayout blueprint={mockBlueprint} />)
-      // When lastPart is 'file.', split('.').pop() returns '', which is falsy
-      expect(screen.getByText('1/1')).toBeInTheDocument()
-    })
-
-    it('should return false when extension length is 0 (line 27)', () => {
-      ;(useInfraStore as jest.Mock).mockImplementation((selector) => {
-        const state = {
-          files: [
-            { path: 'infra/main.tf', content: '', status: 'complete' },
-            { path: 'infra/file.', content: '', status: 'complete' }, // Extension is empty string
-          ],
-        }
-        return selector ? selector(state) : state
-      })
-      render(<MainLayout blueprint={mockBlueprint} />)
-      // ext.length === 0, so should be filtered
-      expect(screen.getByText('1/1')).toBeInTheDocument()
-    })
-
-    it('should return true for valid files with extensions', () => {
-      ;(useInfraStore as jest.Mock).mockImplementation((selector) => {
-        const state = {
+          expected: '1/1',
+        },
+        {
+          name: 'valid files with extensions',
           files: [
             { path: 'infra/main.tf', content: '', status: 'complete' },
             { path: 'infra/variables.tf', content: '', status: 'complete' },
@@ -263,72 +190,53 @@ describe('MainLayout', () => {
             { path: 'workflow.yml', content: '', status: 'complete' },
             { path: 'config.json', content: '', status: 'complete' },
           ],
-        }
-        return selector ? selector(state) : state
-      })
-      render(<MainLayout blueprint={mockBlueprint} />)
-      expect(screen.getByText('5/5')).toBeInTheDocument()
-    })
-
-    it('should handle paths with leading/trailing slashes', () => {
-      ;(useInfraStore as jest.Mock).mockImplementation((selector) => {
-        const state = {
+          expected: '5/5',
+        },
+        {
+          name: 'leading/trailing slashes',
           files: [
-            { path: '/infra/main.tf', content: '', status: 'complete' }, // Leading slash
-            { path: 'infra/main.tf/', content: '', status: 'complete' }, // Trailing slash
-            { path: '/infra/variables.tf/', content: '', status: 'complete' }, // Both
+            { path: '/infra/main.tf', content: '', status: 'complete' },
+            { path: 'infra/main.tf/', content: '', status: 'complete' },
+            { path: '/infra/variables.tf/', content: '', status: 'complete' },
           ],
-        }
-        return selector ? selector(state) : state
-      })
-      render(<MainLayout blueprint={mockBlueprint} />)
-      // All should be valid after filter(Boolean) removes empty parts
-      expect(screen.getByText('3/3')).toBeInTheDocument()
-    })
-
-    it('should handle paths with multiple consecutive slashes', () => {
-      ;(useInfraStore as jest.Mock).mockImplementation((selector) => {
-        const state = {
+          expected: '3/3',
+        },
+        {
+          name: 'multiple consecutive slashes',
           files: [
-            { path: 'infra//main.tf', content: '', status: 'complete' }, // Double slash
-            { path: 'infra///variables.tf', content: '', status: 'complete' }, // Triple slash
+            { path: 'infra//main.tf', content: '', status: 'complete' },
+            { path: 'infra///variables.tf', content: '', status: 'complete' },
           ],
-        }
-        return selector ? selector(state) : state
-      })
-      render(<MainLayout blueprint={mockBlueprint} />)
-      // filter(Boolean) removes empty strings from split
-      expect(screen.getByText('2/2')).toBeInTheDocument()
-    })
-
-    it('should handle root-level files (no slashes)', () => {
-      ;(useInfraStore as jest.Mock).mockImplementation((selector) => {
-        const state = {
+          expected: '2/2',
+        },
+        {
+          name: 'root-level files',
           files: [
-            { path: 'main.tf', content: '', status: 'complete' }, // Root file
-            { path: 'config.yml', content: '', status: 'complete' }, // Root file
+            { path: 'main.tf', content: '', status: 'complete' },
+            { path: 'config.yml', content: '', status: 'complete' },
           ],
-        }
-        return selector ? selector(state) : state
-      })
-      render(<MainLayout blueprint={mockBlueprint} />)
-      expect(screen.getByText('2/2')).toBeInTheDocument()
-    })
-
-    it('should handle files with multiple dots in name', () => {
-      ;(useInfraStore as jest.Mock).mockImplementation((selector) => {
-        const state = {
+          expected: '2/2',
+        },
+        {
+          name: 'multiple dots in name',
           files: [
             { path: 'infra/main.tf', content: '', status: 'complete' },
-            { path: 'infra/file.name.tf', content: '', status: 'complete' }, // Multiple dots
-            { path: 'infra/config.min.js', content: '', status: 'complete' }, // Multiple dots
+            { path: 'infra/file.name.tf', content: '', status: 'complete' },
+            { path: 'infra/config.min.js', content: '', status: 'complete' },
           ],
-        }
-        return selector ? selector(state) : state
+          expected: '3/3',
+        },
+      ]
+
+      testCases.forEach(({ name, files, expected }) => {
+        ;(useInfraStore as jest.Mock).mockImplementation((selector) => {
+          const state = { files }
+          return selector ? selector(state) : state
+        })
+        const { unmount } = render(<MainLayout blueprint={mockBlueprint} />)
+        expect(screen.getByText(expected)).toBeInTheDocument()
+        unmount()
       })
-      render(<MainLayout blueprint={mockBlueprint} />)
-      // Should use the last part after the last dot as extension
-      expect(screen.getByText('3/3')).toBeInTheDocument()
     })
   })
 })

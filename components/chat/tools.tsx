@@ -8,6 +8,7 @@ import {
   useFrontendTool,
   useHumanInTheLoop,
 } from '@copilotkit/react-core'
+import { CheckCircle2 } from 'lucide-react'
 import React from 'react'
 import { BlueprintStepsCard } from './cards/BlueprintStepsCard'
 import { FileProgressCard } from './cards/FileProgressCard'
@@ -285,7 +286,24 @@ export const useInfraTools = (blueprint: Blueprint) => {
         if (response && response.approved === false) {
           return <StepRejectionCard stepNumber={args.stepNumber} stepTitle={args.stepTitle} />
         }
-        // Don't show approval message - agent will proceed with file creation
+        // Show approval message when step is approved
+        if (response && response.approved === true) {
+          return (
+            <div className="border border-emerald-500/30 rounded-lg bg-gradient-to-br from-emerald-500/10 via-slate-900/90 to-slate-800/50 p-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                <div className="flex-1">
+                  <h3 className="text-sm font-semibold text-white">
+                    Step {args.stepNumber} approved
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {args.stepTitle || 'Proceeding with file creation...'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )
+        }
         return <></>
       }
 

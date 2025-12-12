@@ -1,9 +1,11 @@
 import { Blueprint } from '@/lib/blueprints'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, act } from '@testing-library/react'
 import { ChatPanel } from '../chat-panel'
 import { useInfraTools } from '../tools'
+import React from 'react'
 
 const mockResetStore = jest.fn()
+const mockSendMessage = jest.fn()
 
 jest.mock('../tools')
 jest.mock('@/lib/store', () => ({
@@ -17,39 +19,34 @@ jest.mock('@/lib/store', () => ({
     return selector ? selector(mockStore) : mockStore
   }),
 }))
+
 jest.mock('@copilotkit/react-core', () => ({
   useCopilotChatInternal: jest.fn(() => ({
-    sendMessage: jest.fn(),
+    sendMessage: mockSendMessage,
     isAvailable: true,
   })),
 }))
 
-import React from 'react'
-
 let capturedUserMessageComponent: React.ComponentType<{ message?: { id: string; content: string } }> | null = null
 
-jest.mock('@copilotkit/react-ui', () => {
-  return {
-    CopilotChat: ({ instructions, labels, UserMessage }: {
-      instructions?: string
-      labels?: { initial?: string }
-      UserMessage?: React.ComponentType<{ message?: { id: string; content: string } }>
-    }) => {
-      // Capture UserMessage component for testing
-      if (UserMessage) {
-        capturedUserMessageComponent = UserMessage
-      }
-      
-      return React.createElement('div', { 'data-testid': 'copilot-chat' }, [
-        React.createElement('div', { key: 'instructions', 'data-testid': 'instructions' }, instructions),
-        labels?.initial &&
-          React.createElement('div', { key: 'initial', 'data-testid': 'initial-label' }, labels.initial),
-        UserMessage && React.createElement('div', { key: 'user-msg', 'data-testid': 'custom-user-message' }),
-      ])
-    },
-    UserMessage: () => React.createElement('div', { 'data-testid': 'default-user-message' }),
-  }
-})
+jest.mock('@copilotkit/react-ui', () => ({
+  CopilotChat: ({ instructions, labels, UserMessage }: {
+    instructions?: string
+    labels?: { initial?: string }
+    UserMessage?: React.ComponentType<{ message?: { id: string; content: string } }>
+  }) => {
+    if (UserMessage) {
+      capturedUserMessageComponent = UserMessage
+    }
+    return React.createElement('div', { 'data-testid': 'copilot-chat' }, [
+      React.createElement('div', { key: 'instructions', 'data-testid': 'instructions' }, instructions),
+      labels?.initial &&
+        React.createElement('div', { key: 'initial', 'data-testid': 'initial-label' }, labels.initial),
+      UserMessage && React.createElement('div', { key: 'user-msg', 'data-testid': 'custom-user-message' }),
+    ])
+  },
+  UserMessage: () => React.createElement('div', { 'data-testid': 'default-user-message' }),
+}))
 
 const mockBlueprint: Blueprint = {
   id: '1',
@@ -72,52 +69,46 @@ const mockBlueprint: Blueprint = {
   ],
 }
 
-// Mock useCopilotChatInternal before importing
-const mockSendMessage = jest.fn()
-const mockUseCopilotChatInternal = jest.fn(() => ({
-  sendMessage: mockSendMessage,
-  isAvailable: true,
-}))
-
-jest.mock('@copilotkit/react-core', () => ({
-  useCopilotChatInternal: () => mockUseCopilotChatInternal(),
-}))
-
 describe('ChatPanel', () => {
   const mockUseInfraTools = useInfraTools as jest.Mock
 
   beforeEach(() => {
     jest.clearAllMocks()
     capturedUserMessageComponent = null
-    mockUseCopilotChatInternal.mockReturnValue({
-      sendMessage: mockSendMessage,
-      isAvailable: true,
-    })
     mockUseInfraTools.mockReturnValue(undefined)
   })
 
-  it('should render chat panel with blueprint name', () => {
+  it('should render chat panel, register tools, reset store, and include blueprint context', () => {
     render(<ChatPanel blueprint={mockBlueprint} />)
+    
+    // Basic rendering
     expect(screen.getByText('Test Blueprint')).toBeInTheDocument()
     expect(screen.getByText('AWS')).toBeInTheDocument()
-  })
-
-  it('should register tools on mount', () => {
-    render(<ChatPanel blueprint={mockBlueprint} />)
-    expect(mockUseInfraTools).toHaveBeenCalledWith(mockBlueprint)
-  })
-
-  it('should render CopilotChat component', () => {
-    render(<ChatPanel blueprint={mockBlueprint} />)
     expect(screen.getByTestId('copilot-chat')).toBeInTheDocument()
-  })
-
-  it('should include blueprint context in instructions', () => {
-    render(<ChatPanel blueprint={mockBlueprint} />)
+    expect(screen.getByTestId('custom-user-message')).toBeInTheDocument()
+    
+    // Tools registration
+    expect(mockUseInfraTools).toHaveBeenCalledWith(mockBlueprint)
+    
+    // Store reset
+    expect(mockResetStore).toHaveBeenCalled()
+    
+    // Instructions content
     const instructions = screen.getByTestId('instructions').textContent
     expect(instructions).toContain('Test Blueprint')
     expect(instructions).toContain('AWS')
     expect(instructions).toContain('Total Steps: 1')
+    expect(instructions).toContain('displayStepsList')
+    expect(instructions).toContain('requestStepConfirmation')
+  })
+
+  it('should reset store when blueprint.id changes', () => {
+    const { rerender } = render(<ChatPanel blueprint={mockBlueprint} />)
+    expect(mockResetStore).toHaveBeenCalledTimes(1)
+    
+    const newBlueprint = { ...mockBlueprint, id: '2' }
+    rerender(<ChatPanel blueprint={newBlueprint} />)
+    expect(mockResetStore).toHaveBeenCalledTimes(2)
   })
 
   it('should auto-start conversation when available', async () => {
@@ -137,7 +128,8 @@ describe('ChatPanel', () => {
   })
 
   it('should not auto-start if sendMessage is not available', () => {
-    mockUseCopilotChatInternal.mockReturnValue({
+    const { useCopilotChatInternal } = require('@copilotkit/react-core')
+    ;(useCopilotChatInternal as jest.Mock).mockReturnValue({
       sendMessage: null,
       isAvailable: false,
     })
@@ -145,87 +137,51 @@ describe('ChatPanel', () => {
     expect(mockSendMessage).not.toHaveBeenCalled()
   })
 
-  it('should use CustomUserMessage component', () => {
-    render(<ChatPanel blueprint={mockBlueprint} />)
-    expect(screen.getByTestId('custom-user-message')).toBeInTheDocument()
-  })
-
-  it('should handle CustomUserMessage hiding auto-start message', () => {
-    const { container } = render(<ChatPanel blueprint={mockBlueprint} />)
-    // CustomUserMessage is rendered, which handles hiding auto-start messages
-    expect(container.querySelector('[data-testid="custom-user-message"]')).toBeInTheDocument()
-  })
-
-  it('should include stepsForTool in instructions', () => {
-    render(<ChatPanel blueprint={mockBlueprint} />)
-    const instructions = screen.getByTestId('instructions').textContent
-    expect(instructions).toContain('displayStepsList')
-    expect(instructions).toContain('requestStepConfirmation')
-  })
-
-  it('should handle CustomUserMessage with auto-start message', () => {
-    render(<ChatPanel blueprint={mockBlueprint} />)
-    // CustomUserMessage should be rendered
-    expect(screen.getByTestId('custom-user-message')).toBeInTheDocument()
-  })
-
-  it('should handle CustomUserMessage with regular message', () => {
-    render(<ChatPanel blueprint={mockBlueprint} />)
-    // CustomUserMessage should handle non-auto-start messages
-    const customMessage = screen.getByTestId('custom-user-message')
-    expect(customMessage).toBeInTheDocument()
-  })
-
-  it('should return null when message.id matches autoStartMessageId (lines 51-54)', async () => {
-    // Use fake timers to control setTimeout
-    jest.useFakeTimers()
-    
-    // Render ChatPanel to get the CustomUserMessage component
+  it('should handle CustomUserMessage hiding auto-start message (lines 57-65)', async () => {
     render(<ChatPanel blueprint={mockBlueprint} />)
     
-    // Wait for UserMessage to be captured
+    // Wait for UserMessage component to be captured
     await waitFor(() => {
       expect(capturedUserMessageComponent).not.toBeNull()
-    }, { timeout: 1000 })
-
-    // Fast-forward the setTimeout (1000ms delay)
-    jest.advanceTimersByTime(1000)
-
-    // Get the message ID that was sent (format: auto-start-{timestamp})
-    await waitFor(() => {
-      expect(mockSendMessage).toHaveBeenCalled()
     })
     
-    const sentMessage = mockSendMessage.mock.calls[0][0]
-    const autoStartId = sentMessage.id
-    expect(autoStartId).toMatch(/^auto-start-\d+$/)
-
-    // Test the CustomUserMessage component with matching message.id
-    expect(capturedUserMessageComponent).not.toBeNull()
+    // Wait for sendMessage to be called (after 1000ms setTimeout) - this sets autoStartMessageId.current
+    await waitFor(() => {
+      expect(mockSendMessage).toHaveBeenCalled()
+    }, { timeout: 3000 })
     
     if (!capturedUserMessageComponent) {
       throw new Error('capturedUserMessageComponent is null')
     }
     
-    // Test case 1: message.id matches autoStartMessageId - should return null (line 54)
-    // The ref autoStartMessageId.current is set inside ChatPanel's useEffect setTimeout
-    // After advancing timers, the ref should be set to autoStartId
+    const sentMessage = mockSendMessage.mock.calls[0][0]
+    const autoStartId = sentMessage.id
+    expect(autoStartId).toMatch(/^auto-start-\d+$/)
+    
+    // Test line 58: destructure message from props
+    // Test line 60-61: Matching message.id should return null (covers both conditions)
     const matchingMessage = { id: autoStartId, content: 'Start building the infrastructure' }
-    const result1 = capturedUserMessageComponent({ message: matchingMessage })
-    // The condition checks: if (autoStartMessageId.current && message?.id === autoStartMessageId.current)
-    // Since autoStartMessageId.current is set to autoStartId, this should return null
+    const result1 = React.createElement(capturedUserMessageComponent, { message: matchingMessage })
     expect(result1).toBeNull()
 
-    // Test case 2: message.id does not match - should render (not null)
+    // Test line 64: Non-matching message.id should render DefaultUserMessage
     const nonMatchingMessage = { id: 'other-123', content: 'Regular message' }
-    const result2 = capturedUserMessageComponent({ message: nonMatchingMessage })
+    const result2 = React.createElement(capturedUserMessageComponent, { message: nonMatchingMessage })
     expect(result2).not.toBeNull()
 
-    // Test case 3: message is undefined - should render (condition is false, line 53)
-    const result3 = capturedUserMessageComponent({ message: undefined })
+    // Test line 60: Undefined message should render (first condition false: autoStartMessageId.current is truthy, but message?.id is undefined)
+    const result3 = React.createElement(capturedUserMessageComponent, { message: undefined })
     expect(result3).not.toBeNull()
-
-    jest.useRealTimers()
+    
+    // Test line 60: When autoStartMessageId.current is null (before setTimeout executes)
+    // This requires a fresh render where autoStartMessageId hasn't been set yet
+    const { unmount } = render(<ChatPanel blueprint={mockBlueprint} />)
+    await waitFor(() => {
+      expect(capturedUserMessageComponent).not.toBeNull()
+    })
+    // Before setTimeout executes, autoStartMessageId.current is null
+    const result4 = React.createElement(capturedUserMessageComponent, { message: { id: 'test', content: 'test' } })
+    expect(result4).not.toBeNull()
+    unmount()
   })
 })
-

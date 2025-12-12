@@ -12,139 +12,91 @@ const mockStep = {
 }
 
 describe('StepConfirmationCard', () => {
-  it('should render step information', () => {
+  it('should render all step information including number, title, description, module details, and requirements', () => {
     render(<StepConfirmationCard step={mockStep} onConfirm={jest.fn()} onCancel={jest.fn()} />)
+    
+    // Check main content
     expect(screen.getByText(/Continue with step 1: VPC Module/i)).toBeInTheDocument()
     expect(screen.getByText(/Create VPC infrastructure/i)).toBeInTheDocument()
-  })
-
-  it('should render step number', () => {
-    render(<StepConfirmationCard step={mockStep} onConfirm={jest.fn()} onCancel={jest.fn()} />)
     expect(screen.getByText('1')).toBeInTheDocument()
-  })
-
-  it('should render module details when provided', () => {
-    render(<StepConfirmationCard step={mockStep} onConfirm={jest.fn()} onCancel={jest.fn()} />)
-    // Module name appears in the details section
+    
+    // Check module details
     expect(screen.getByText(/Module:/i)).toBeInTheDocument()
     expect(screen.getByText(/Source:/i)).toBeInTheDocument()
-  })
-
-  it('should render key requirements when provided', () => {
-    render(<StepConfirmationCard step={mockStep} onConfirm={jest.fn()} onCancel={jest.fn()} />)
+    
+    // Check requirements
     expect(screen.getByText('Requirement 1')).toBeInTheDocument()
     expect(screen.getByText('Requirement 2')).toBeInTheDocument()
   })
 
-  it('should call onConfirm when approve button is clicked', async () => {
+  it('should call onConfirm and onCancel when buttons are clicked', async () => {
     const user = userEvent.setup()
     const onConfirm = jest.fn()
-    render(<StepConfirmationCard step={mockStep} onConfirm={onConfirm} onCancel={jest.fn()} />)
+    const onCancel = jest.fn()
+    render(<StepConfirmationCard step={mockStep} onConfirm={onConfirm} onCancel={onCancel} />)
+    
+    // Test approve button
     const approveButton = screen.getByRole('button', { name: /approve & continue/i })
     await user.click(approveButton)
     expect(onConfirm).toHaveBeenCalledTimes(1)
-  })
-
-  it('should call onCancel when cancel button is clicked', async () => {
-    const user = userEvent.setup()
-    const onCancel = jest.fn()
-    render(<StepConfirmationCard step={mockStep} onConfirm={jest.fn()} onCancel={onCancel} />)
+    
+    // Test cancel button
     const cancelButton = screen.getByRole('button', { name: /cancel/i })
     await user.click(cancelButton)
     expect(onCancel).toHaveBeenCalledTimes(1)
   })
 
-  it('should render without moduleName', () => {
-    const stepWithoutModule = {
-      stepNumber: 1,
-      stepTitle: 'Step 1',
-      description: 'Description',
-    }
-    render(
-      <StepConfirmationCard step={stepWithoutModule as Step} onConfirm={jest.fn()} onCancel={jest.fn()} />
-    )
-    expect(screen.getByText(/Continue with step 1/i)).toBeInTheDocument()
-  })
+  it('should handle optional fields and fallbacks correctly', () => {
+    const testCases = [
+      {
+        name: 'without moduleName',
+        step: { stepNumber: 1, stepTitle: 'Step 1', description: 'Description' },
+        expected: /Continue with step 1/i,
+      },
+      {
+        name: 'without moduleSource',
+        step: { stepNumber: 1, stepTitle: 'Step 1', description: 'Description', moduleName: 'vpc' },
+        expected: /Continue with step 1/i,
+      },
+      {
+        name: 'without keyRequirements',
+        step: {
+          stepNumber: 1,
+          stepTitle: 'Step 1',
+          description: 'Description',
+          moduleName: 'vpc',
+          moduleSource: 'Public Registry',
+        },
+        expected: /Continue with step 1/i,
+      },
+      {
+        name: 'without description',
+        step: { stepNumber: 1, stepTitle: 'Step 1', moduleName: 'vpc' },
+        expected: /Continue with step 1/i,
+      },
+      {
+        name: 'without stepNumber (shows ?)',
+        step: { stepTitle: 'Step 1', description: 'Test' },
+        expected: '?',
+      },
+      {
+        name: 'without stepTitle (shows Untitled Step)',
+        step: { stepNumber: 1, description: 'Test' },
+        expected: /Untitled Step/i,
+      },
+    ]
 
-  it('should render without moduleSource', () => {
-    const stepWithoutSource = {
-      stepNumber: 1,
-      stepTitle: 'Step 1',
-      description: 'Description',
-      moduleName: 'vpc',
-    }
-    render(
-      <StepConfirmationCard
-        step={stepWithoutSource as Step}
-        onConfirm={jest.fn()}
-        onCancel={jest.fn()}
-      />
-    )
-    expect(screen.getByText(/Continue with step 1/i)).toBeInTheDocument()
-  })
-
-  it('should render without keyRequirements', () => {
-    const stepWithoutReqs = {
-      stepNumber: 1,
-      stepTitle: 'Step 1',
-      description: 'Description',
-      moduleName: 'vpc',
-      moduleSource: 'Public Registry',
-    }
-    render(
-      <StepConfirmationCard
-        step={stepWithoutReqs as Step}
-        onConfirm={jest.fn()}
-        onCancel={jest.fn()}
-      />
-    )
-    expect(screen.getByText(/Continue with step 1/i)).toBeInTheDocument()
-  })
-
-  it('should render without description', () => {
-    const stepWithoutDesc = {
-      stepNumber: 1,
-      stepTitle: 'Step 1',
-      moduleName: 'vpc',
-    }
-    render(
-      <StepConfirmationCard
-        step={stepWithoutDesc as Step}
-        onConfirm={jest.fn()}
-        onCancel={jest.fn()}
-      />
-    )
-    expect(screen.getByText(/Continue with step 1/i)).toBeInTheDocument()
-  })
-
-  it('should render with stepNumber as ? when missing', () => {
-    const stepWithoutNumber = {
-      stepTitle: 'Step 1',
-      description: 'Test',
-    }
-    render(
-      <StepConfirmationCard
-        step={stepWithoutNumber as Step}
-        onConfirm={jest.fn()}
-        onCancel={jest.fn()}
-      />
-    )
-    expect(screen.getByText('?')).toBeInTheDocument()
-  })
-
-  it('should render with Untitled Step when stepTitle missing', () => {
-    const stepWithoutTitle = {
-      stepNumber: 1,
-      description: 'Test',
-    }
-    render(
-      <StepConfirmationCard
-        step={stepWithoutTitle as Step}
-        onConfirm={jest.fn()}
-        onCancel={jest.fn()}
-      />
-    )
-    expect(screen.getByText(/Untitled Step/i)).toBeInTheDocument()
+    testCases.forEach(({ name, step, expected }) => {
+      const { unmount } = render(
+        <StepConfirmationCard step={step as Step} onConfirm={jest.fn()} onCancel={jest.fn()} />
+      )
+      if (typeof expected === 'string') {
+        expect(screen.getByText(expected)).toBeInTheDocument()
+      } else {
+        expect(screen.getByText(expected)).toBeInTheDocument()
+      }
+      unmount()
+    })
   })
 })
 

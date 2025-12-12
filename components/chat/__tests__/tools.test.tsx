@@ -100,39 +100,38 @@ describe('useInfraTools', () => {
   })
 
   describe('Tool Registration', () => {
-    it('should register all tools', () => {
+    it('should register all tools and blueprint data', () => {
       renderHook(() => useInfraTools(mockBlueprint))
+      
+      // Check all hooks are called
       expect(useCopilotReadable).toHaveBeenCalled()
       expect(useFrontendTool).toHaveBeenCalled()
       expect(useHumanInTheLoop).toHaveBeenCalled()
-    })
-
-    it('should register blueprint data', () => {
-      renderHook(() => useInfraTools(mockBlueprint))
+      
+      // Check blueprint data registration
       expect(useCopilotReadable).toHaveBeenCalledWith(
         expect.objectContaining({
           description: expect.stringContaining('Blueprint steps'),
           value: expect.objectContaining({ id: '1', name: 'Test Blueprint' }),
         })
       )
-    })
-
-    it('should register displayStepsList tool', () => {
-      renderHook(() => useInfraTools(mockBlueprint))
+      
+      // Check all tool registrations
       const calls = (useFrontendTool as jest.Mock).mock.calls
-      const call = calls.find((c: ToolConfig[]) => c[0]?.name === 'displayStepsList')
-      expect(call?.[0]?.description).toContain('Display all blueprint steps')
-    })
-
-    it('should register retrieveTemplates tool', () => {
-      renderHook(() => useInfraTools(mockBlueprint))
-      const calls = (useFrontendTool as jest.Mock).mock.calls
-      const call = calls.find((c: ToolConfig[]) => c[0]?.name === 'retrieveTemplates')
-      expect(call?.[0]?.description).toContain('Retrieve Terraform templates')
-    })
-
-    it('should register requestStepConfirmation tool', () => {
-      renderHook(() => useInfraTools(mockBlueprint))
+      const toolNames = ['displayStepsList', 'retrieveTemplates', 'createFile', 'writeToFile', 'markStepComplete']
+      toolNames.forEach((toolName) => {
+        const call = calls.find((c: ToolConfig[]) => c[0]?.name === toolName)
+        expect(call).toBeDefined()
+      })
+      
+      // Check specific tool descriptions
+      expect(calls.find((c: ToolConfig[]) => c[0]?.name === 'displayStepsList')?.[0]?.description).toContain('Display all blueprint steps')
+      expect(calls.find((c: ToolConfig[]) => c[0]?.name === 'retrieveTemplates')?.[0]?.description).toContain('Retrieve Terraform templates')
+      expect(calls.find((c: ToolConfig[]) => c[0]?.name === 'createFile')?.[0]?.description).toContain('Create a new file')
+      expect(calls.find((c: ToolConfig[]) => c[0]?.name === 'writeToFile')?.[0]?.description).toContain('Write content to a SINGLE file')
+      expect(calls.find((c: ToolConfig[]) => c[0]?.name === 'markStepComplete')?.[0]?.description).toContain('MANDATORY')
+      
+      // Check human-in-the-loop tool
       expect(useHumanInTheLoop).toHaveBeenCalledWith(
         expect.objectContaining({
           name: 'requestStepConfirmation',
@@ -140,52 +139,22 @@ describe('useInfraTools', () => {
         })
       )
     })
-
-    it('should register createFile tool', () => {
-      renderHook(() => useInfraTools(mockBlueprint))
-      const calls = (useFrontendTool as jest.Mock).mock.calls
-      const call = calls.find((c: ToolConfig[]) => c[0]?.name === 'createFile')
-      expect(call?.[0]?.description).toContain('Create a new file')
-    })
-
-    it('should register writeToFile tool', () => {
-      renderHook(() => useInfraTools(mockBlueprint))
-      const calls = (useFrontendTool as jest.Mock).mock.calls
-      const call = calls.find((c: ToolConfig[]) => c[0]?.name === 'writeToFile')
-      expect(call?.[0]?.description).toContain('Write content to a SINGLE file')
-    })
-
-    it('should register markStepComplete tool', () => {
-      renderHook(() => useInfraTools(mockBlueprint))
-      const calls = (useFrontendTool as jest.Mock).mock.calls
-      const call = calls.find((c: ToolConfig[]) => c[0]?.name === 'markStepComplete')
-      expect(call?.[0]?.description).toContain('MANDATORY')
-    })
   })
 
   describe('displayStepsList', () => {
-    it('should handle steps', async () => {
+    it('should handle steps with correct count (including steps?.length || 0 fallback)', async () => {
       const handler = getHandler('displayStepsList')
-      const result = await handler?.({ steps: [{ number: 1, title: 'Step 1' }] })
-      expect(result).toContain('Displayed 1 blueprint steps')
-    })
-
-    it('should handle steps?.length || 0 when steps is undefined', async () => {
-      const handler = getHandler('displayStepsList')
-      const result = await handler?.({ steps: undefined })
-      expect(result).toBe('Displayed 0 blueprint steps')
-    })
-
-    it('should handle steps?.length || 0 when steps is null', async () => {
-      const handler = getHandler('displayStepsList')
-      const result = await handler?.({ steps: null })
-      expect(result).toBe('Displayed 0 blueprint steps')
-    })
-
-    it('should handle steps?.length || 0 when steps is empty array', async () => {
-      const handler = getHandler('displayStepsList')
-      const result = await handler?.({ steps: [] })
-      expect(result).toBe('Displayed 0 blueprint steps')
+      
+      // Test with steps
+      const result1 = await handler?.({ steps: [{ number: 1, title: 'Step 1' }] })
+      expect(result1).toContain('Displayed 1 blueprint steps')
+      
+      // Test fallback cases (undefined, null, empty array)
+      const testCases = [undefined, null, []]
+      for (const testCase of testCases) {
+        const result = await handler?.({ steps: testCase })
+        expect(result).toBe('Displayed 0 blueprint steps')
+      }
     })
   })
 
@@ -269,20 +238,18 @@ describe('useInfraTools', () => {
         )
       })
 
-      it('should handle null main', async () => {
-        await testTemplateCondition(
+      it('should handle falsy main template values (null and empty string)', async () => {
+        const testCases = [
           { main: null, variables: 'vars', outputs: 'outs' },
-          ['variables', 'outputs'],
-          ['main, variables', 'main, outputs']
-        )
-      })
-
-      it('should handle empty string main', async () => {
-        await testTemplateCondition(
           { main: '', variables: 'vars', outputs: 'outs' },
-          ['variables', 'outputs'],
-          ['main, variables', 'main, outputs']
-        )
+        ]
+        for (const templates of testCases) {
+          await testTemplateCondition(
+            templates,
+            ['variables', 'outputs'],
+            ['main, variables', 'main, outputs']
+          )
+        }
       })
     })
   })
@@ -522,7 +489,7 @@ describe('useInfraTools - Render Functions', () => {
         expect(result).toEqual(<></>)
       })
 
-      it('should return empty when status is complete and response.approved is true', async () => {
+      it('should show approval message when status is complete and response.approved is true', async () => {
         const mockRespond = jest.fn().mockResolvedValue(undefined)
         let renderFn: ((props: unknown) => React.ReactElement | null) | undefined
         ;(useHumanInTheLoop as jest.Mock).mockImplementation((config: { render?: (props: unknown) => React.ReactElement | null }) => {
@@ -543,12 +510,14 @@ describe('useInfraTools - Render Functions', () => {
         approveButton?.click()
         await new Promise((resolve) => setTimeout(resolve, 10))
         
-        // Now test status === 'complete' with approved: true - should return empty
+        // Now test status === 'complete' with approved: true - should show approval message
         const completeResult = renderFn?.({ 
           args: { stepNumber: 2, stepTitle: 'Step 2' }, 
           status: 'complete' 
         })
-        expect(completeResult).toEqual(<></>)
+        const { container } = render((completeResult || <></>) as React.ReactElement)
+        expect(container.textContent).toContain('Step 2 approved')
+        expect(container.textContent).toContain('Step 2')
       })
 
       it('should return empty when status is NOT complete', () => {
@@ -598,20 +567,28 @@ describe('useInfraTools - Render Functions', () => {
       })
     })
 
-    it('should return empty when path/content missing', () => {
+    it('should return empty when path/content missing and render FileProgressCard when valid', () => {
       const renderFn = getRenderFn('writeToFile')
-      const result1 = renderFn?.({ args: { path: '', content: 'test' }, status: 'writing' })
-      const result2 = renderFn?.({ args: { path: 'test.tf', content: '' }, status: 'writing' })
-      expect(render(result1 as React.ReactElement).container.firstChild).toBeNull()
-      expect(render(result2 as React.ReactElement).container.firstChild).toBeNull()
-    })
-
-    it('should render FileProgressCard', () => {
-      const renderFn = getRenderFn('writeToFile')
-      const result1 = renderFn?.({ args: { path: 'test.tf', content: 'content' }, status: 'writing' })
-      const result2 = renderFn?.({ args: { path: 'test.tf', content: 'content' }, status: 'complete' })
-      expect(render(result1 as React.ReactElement).container).toBeInTheDocument()
-      expect(render(result2 as React.ReactElement).container).toBeInTheDocument()
+      
+      // Test empty cases
+      const emptyCases = [
+        { args: { path: '', content: 'test' }, status: 'writing' },
+        { args: { path: 'test.tf', content: '' }, status: 'writing' },
+      ]
+      emptyCases.forEach((testCase) => {
+        const result = renderFn?.(testCase)
+        expect(render(result as React.ReactElement).container.firstChild).toBeNull()
+      })
+      
+      // Test FileProgressCard rendering
+      const validCases = [
+        { args: { path: 'test.tf', content: 'content' }, status: 'writing' },
+        { args: { path: 'test.tf', content: 'content' }, status: 'complete' },
+      ]
+      validCases.forEach((testCase) => {
+        const result = renderFn?.(testCase)
+        expect(render(result as React.ReactElement).container).toBeInTheDocument()
+      })
     })
 
     it('should handle file creation useEffect', async () => {

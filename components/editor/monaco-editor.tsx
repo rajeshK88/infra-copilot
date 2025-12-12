@@ -1,16 +1,18 @@
 'use client'
 
 import { useInfraStore } from '@/lib/store'
-import Editor from '@monaco-editor/react'
+import Editor, { OnMount } from '@monaco-editor/react'
 import { motion } from 'framer-motion'
 import { CheckCircle2, Clock, FileText, Loader2 } from 'lucide-react'
-import type { editor } from 'monaco-editor'
 import { useEffect, useRef } from 'react'
+
+// Extract editor type from OnMount callback
+type MonacoEditorInstance = Parameters<OnMount>[0]
 
 export const MonacoEditor = () => {
   const { files, selectedFile } = useInfraStore()
   const file = files.find((f) => f.path === selectedFile)
-  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
+  const editorRef = useRef<MonacoEditorInstance | null>(null)
   const previousContentLength = useRef<number>(0)
 
   // Determine language from file extension
@@ -93,8 +95,8 @@ export const MonacoEditor = () => {
   }, [file])
 
   // Handle editor mount
-  const handleEditorDidMount = (editor: editor.IStandaloneCodeEditor) => {
-    editorRef.current = editor
+  const handleEditorDidMount: OnMount = (editorInstance) => {
+    editorRef.current = editorInstance
   }
 
   if (!file) {

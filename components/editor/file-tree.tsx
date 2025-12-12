@@ -235,7 +235,7 @@ export const FileTree = () => {
   const validTree = tree.filter((node) => {
     // Files must have extensions
     if (node.type === 'file') {
-      return node.name.includes('.') && node.name.split('.').pop()?.length > 0
+      return node.name.includes('.') && node.name.split('.').pop() !== undefined
     }
     // Folders are valid if they have children or are part of valid paths
     return true

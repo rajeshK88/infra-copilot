@@ -3,13 +3,10 @@ import { BlueprintStep } from '../blueprints'
 
 describe('agent-instructions', () => {
   describe('agentInstructions', () => {
-    it('should be a non-empty string', () => {
+    it('should be a non-empty string containing key workflow instructions', () => {
       expect(agentInstructions).toBeDefined()
       expect(typeof agentInstructions).toBe('string')
       expect(agentInstructions.length).toBeGreaterThan(0)
-    })
-
-    it('should contain key workflow instructions', () => {
       expect(agentInstructions).toContain('displayStepsList')
       expect(agentInstructions).toContain('requestStepConfirmation')
       expect(agentInstructions).toContain('writeToFile')
@@ -18,221 +15,200 @@ describe('agent-instructions', () => {
   })
 
   describe('getTemplateForStep', () => {
-    it('should return VPC templates for VPC step', () => {
-      const step: BlueprintStep = {
-        id: 1,
-        title: 'VPC Module',
-        type: 'terraform-module',
-        description: 'VPC',
-        moduleName: 'vpc',
-      }
+    it('should return correct templates for different step types and modules', () => {
+      const testCases = [
+        {
+          name: 'VPC step',
+          step: {
+            id: 1,
+            title: 'VPC Module',
+            type: 'terraform-module' as const,
+            description: 'VPC',
+            moduleName: 'vpc',
+          },
+          expected: { hasMain: true, hasVariables: true, hasOutputs: true, contains: 'aws_vpc' },
+        },
+        {
+          name: 'S3 step',
+          step: {
+            id: 1,
+            title: 'S3 Static Website',
+            type: 'terraform-module' as const,
+            description: 'S3',
+            moduleName: 's3-website',
+          },
+          expected: { hasMain: true, hasVariables: true, hasOutputs: true },
+        },
+        {
+          name: 'RDS step',
+          step: {
+            id: 1,
+            title: 'RDS PostgreSQL Database',
+            type: 'terraform-module' as const,
+            description: 'RDS',
+            moduleName: 'rds-postgres',
+          },
+          expected: { hasMain: true, hasVariables: true, hasOutputs: true },
+        },
+        {
+          name: 'Lambda step',
+          step: {
+            id: 1,
+            title: 'Lambda API Module',
+            type: 'terraform-module' as const,
+            description: 'Lambda',
+            moduleName: 'lambda-api',
+          },
+          expected: { hasMain: true, hasVariables: true, hasOutputs: true },
+        },
+        {
+          name: 'GitHub Actions type',
+          step: {
+            id: 1,
+            title: 'CI/CD Pipeline',
+            type: 'github-actions' as const,
+            description: 'GitHub Actions',
+            workflowName: '.github/workflows/deploy.yml',
+          },
+          expected: { hasMain: true, hasVariables: false, hasOutputs: false },
+        },
+        {
+          name: 'unknown step (defaults to VPC)',
+          step: {
+            id: 1,
+            title: 'Unknown Module',
+            type: 'terraform-module' as const,
+            description: 'Unknown',
+            moduleName: 'unknown',
+          },
+          expected: { hasMain: true, hasVariables: true, hasOutputs: true },
+        },
+      ]
 
-      const templates = getTemplateForStep(step)
-
-      expect(templates.main).toBeDefined()
-      expect(templates.variables).toBeDefined()
-      expect(templates.outputs).toBeDefined()
-      expect(templates.main).toContain('aws_vpc')
+      testCases.forEach(({ name, step, expected }) => {
+        const templates = getTemplateForStep(step as BlueprintStep)
+        expect(templates.main).toBeDefined()
+        if (expected.hasVariables) {
+          expect(templates.variables).toBeDefined()
+        } else {
+          expect(templates.variables).toBeUndefined()
+        }
+        if (expected.hasOutputs) {
+          expect(templates.outputs).toBeDefined()
+        } else {
+          expect(templates.outputs).toBeUndefined()
+        }
+        if (expected.contains) {
+          expect(templates.main).toContain(expected.contains)
+        }
+      })
     })
 
-    it('should return S3 templates for S3 step', () => {
-      const step: BlueprintStep = {
-        id: 1,
-        title: 'S3 Static Website',
-        type: 'terraform-module',
-        description: 'S3',
-        moduleName: 's3-website',
-      }
+    it('should match by moduleName, stepTitle, handle case-insensitive matching, and edge cases', () => {
+      const testCases = [
+        {
+          name: 'match by moduleName',
+          step: {
+            id: 1,
+            title: 'Some Title',
+            type: 'terraform-module' as const,
+            description: 'Description',
+            moduleName: 'vpc-module',
+          },
+          expected: { contains: 'aws_vpc' },
+        },
+        {
+          name: 'match by stepTitle',
+          step: {
+            id: 1,
+            title: 'VPC Network',
+            type: 'terraform-module' as const,
+            description: 'Description',
+            moduleName: 'network',
+          },
+          expected: { contains: 'aws_vpc' },
+        },
+        {
+          name: 'case-insensitive matching',
+          step: {
+            id: 1,
+            title: 'VPC Module',
+            type: 'terraform-module' as const,
+            description: 'Description',
+            moduleName: 'VPC',
+          },
+          expected: {},
+        },
+        {
+          name: 'CloudFront in module name',
+          step: {
+            id: 1,
+            title: 'CloudFront Distribution',
+            type: 'terraform-module' as const,
+            description: 'CloudFront',
+            moduleName: 'cloudfront-module',
+          },
+          expected: { hasVariables: true, hasOutputs: true },
+        },
+        {
+          name: 'static in step title',
+          step: {
+            id: 1,
+            title: 'Static Website',
+            type: 'terraform-module' as const,
+            description: 'Static',
+            moduleName: 'website',
+          },
+          expected: {},
+        },
+        {
+          name: 'postgres in module name',
+          step: {
+            id: 1,
+            title: 'PostgreSQL Database',
+            type: 'terraform-module' as const,
+            description: 'Database',
+            moduleName: 'postgres-db',
+          },
+          expected: { contains: 'aws_db_instance' },
+        },
+        {
+          name: 'database in step title',
+          step: {
+            id: 1,
+            title: 'Database Module',
+            type: 'terraform-module' as const,
+            description: 'Database',
+            moduleName: 'db',
+          },
+          expected: {},
+        },
+        {
+          name: 'empty moduleName and stepTitle (defaults to VPC)',
+          step: {
+            id: 1,
+            title: '',
+            type: 'terraform-module' as const,
+            description: '',
+            moduleName: '',
+          },
+          expected: { hasVariables: true, hasOutputs: true },
+        },
+      ]
 
-      const templates = getTemplateForStep(step)
-
-      expect(templates.main).toBeDefined()
-      expect(templates.variables).toBeDefined()
-      expect(templates.outputs).toBeDefined()
-    })
-
-    it('should return RDS templates for RDS step', () => {
-      const step: BlueprintStep = {
-        id: 1,
-        title: 'RDS PostgreSQL Database',
-        type: 'terraform-module',
-        description: 'RDS',
-        moduleName: 'rds-postgres',
-      }
-
-      const templates = getTemplateForStep(step)
-
-      expect(templates.main).toBeDefined()
-      expect(templates.variables).toBeDefined()
-      expect(templates.outputs).toBeDefined()
-    })
-
-    it('should return Lambda templates for Lambda step', () => {
-      const step: BlueprintStep = {
-        id: 1,
-        title: 'Lambda API Module',
-        type: 'terraform-module',
-        description: 'Lambda',
-        moduleName: 'lambda-api',
-      }
-
-      const templates = getTemplateForStep(step)
-
-      expect(templates.main).toBeDefined()
-      expect(templates.variables).toBeDefined()
-      expect(templates.outputs).toBeDefined()
-    })
-
-    it('should return GitHub Actions workflow for github-actions type', () => {
-      const step: BlueprintStep = {
-        id: 1,
-        title: 'CI/CD Pipeline',
-        type: 'github-actions',
-        description: 'GitHub Actions',
-        workflowName: '.github/workflows/deploy.yml',
-      }
-
-      const templates = getTemplateForStep(step)
-
-      expect(templates.main).toBeDefined()
-      expect(templates.variables).toBeUndefined()
-      expect(templates.outputs).toBeUndefined()
-    })
-
-    it('should return default VPC templates for unknown step', () => {
-      const step: BlueprintStep = {
-        id: 1,
-        title: 'Unknown Module',
-        type: 'terraform-module',
-        description: 'Unknown',
-        moduleName: 'unknown',
-      }
-
-      const templates = getTemplateForStep(step)
-
-      expect(templates.main).toBeDefined()
-      expect(templates.variables).toBeDefined()
-      expect(templates.outputs).toBeDefined()
-    })
-
-    it('should match by moduleName', () => {
-      const step: BlueprintStep = {
-        id: 1,
-        title: 'Some Title',
-        type: 'terraform-module',
-        description: 'Description',
-        moduleName: 'vpc-module',
-      }
-
-      const templates = getTemplateForStep(step)
-
-      expect(templates.main).toBeDefined()
-      expect(templates.main).toContain('aws_vpc')
-    })
-
-    it('should match by stepTitle', () => {
-      const step: BlueprintStep = {
-        id: 1,
-        title: 'VPC Network',
-        type: 'terraform-module',
-        description: 'Description',
-        moduleName: 'network',
-      }
-
-      const templates = getTemplateForStep(step)
-
-      expect(templates.main).toBeDefined()
-      expect(templates.main).toContain('aws_vpc')
-    })
-
-    it('should handle case-insensitive matching', () => {
-      const step: BlueprintStep = {
-        id: 1,
-        title: 'VPC Module',
-        type: 'terraform-module',
-        description: 'Description',
-        moduleName: 'VPC',
-      }
-
-      const templates = getTemplateForStep(step)
-
-      expect(templates.main).toBeDefined()
-    })
-
-    it('should handle CloudFront in module name', () => {
-      const step: BlueprintStep = {
-        id: 1,
-        title: 'CloudFront Distribution',
-        type: 'terraform-module',
-        description: 'CloudFront',
-        moduleName: 'cloudfront-module',
-      }
-
-      const templates = getTemplateForStep(step)
-
-      expect(templates.main).toBeDefined()
-      expect(templates.variables).toBeDefined()
-      expect(templates.outputs).toBeDefined()
-    })
-
-    it('should handle static in step title', () => {
-      const step: BlueprintStep = {
-        id: 1,
-        title: 'Static Website',
-        type: 'terraform-module',
-        description: 'Static',
-        moduleName: 'website',
-      }
-
-      const templates = getTemplateForStep(step)
-
-      expect(templates.main).toBeDefined()
-    })
-
-    it('should handle postgres in module name', () => {
-      const step: BlueprintStep = {
-        id: 1,
-        title: 'PostgreSQL Database',
-        type: 'terraform-module',
-        description: 'Database',
-        moduleName: 'postgres-db',
-      }
-
-      const templates = getTemplateForStep(step)
-
-      expect(templates.main).toBeDefined()
-      expect(templates.main).toContain('aws_db_instance')
-    })
-
-    it('should handle database in step title', () => {
-      const step: BlueprintStep = {
-        id: 1,
-        title: 'Database Module',
-        type: 'terraform-module',
-        description: 'Database',
-        moduleName: 'db',
-      }
-
-      const templates = getTemplateForStep(step)
-
-      expect(templates.main).toBeDefined()
-    })
-
-    it('should handle empty moduleName and stepTitle', () => {
-      const step: BlueprintStep = {
-        id: 1,
-        title: '',
-        type: 'terraform-module',
-        description: '',
-        moduleName: '',
-      }
-
-      const templates = getTemplateForStep(step)
-
-      // Should return default VPC template
-      expect(templates.main).toBeDefined()
-      expect(templates.variables).toBeDefined()
-      expect(templates.outputs).toBeDefined()
+      testCases.forEach(({ name, step, expected }) => {
+        const templates = getTemplateForStep(step as BlueprintStep)
+        expect(templates.main).toBeDefined()
+        if (expected.hasVariables !== undefined) {
+          if (expected.hasVariables) {
+            expect(templates.variables).toBeDefined()
+            expect(templates.outputs).toBeDefined()
+          }
+        }
+        if (expected.contains) {
+          expect(templates.main).toContain(expected.contains)
+        }
+      })
     })
   })
 })

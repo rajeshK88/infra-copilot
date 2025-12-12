@@ -20,128 +20,91 @@ describe('FileProgressCard', () => {
     })
   })
 
-  it('should render file path', () => {
-    render(<FileProgressCard path="infra/modules/vpc/main.tf" status="creating" />)
-    expect(screen.getByText('infra/modules/vpc/main.tf')).toBeInTheDocument()
+  it('should render file path and show correct status text for all statuses', () => {
+    const testCases = [
+      { status: 'creating' as const, path: 'test.tf', expectedText: 'Creating file' },
+      { status: 'writing' as const, path: 'test.tf', expectedText: 'Writing' },
+      { status: 'complete' as const, path: 'infra/modules/vpc/main.tf', expectedText: 'main.tf' },
+      { status: 'created' as const, path: 'infra/main.tf', expectedText: 'main.tf' },
+    ]
+
+    testCases.forEach(({ status, path, expectedText }) => {
+      const { unmount } = render(<FileProgressCard path={path} status={status} />)
+      
+      // Check path is always rendered
+      expect(screen.getByText(path)).toBeInTheDocument()
+      
+      // Check status-specific text (use getAllByText for cases where filename matches path)
+      const textElements = screen.getAllByText(expectedText)
+      expect(textElements.length).toBeGreaterThan(0)
+      
+      // Check right arrow for complete/created
+      if (status === 'complete' || status === 'created') {
+        expect(screen.getByText('→')).toBeInTheDocument()
+      }
+      
+      unmount()
+    })
   })
 
-  it('should show creating status', () => {
-    render(<FileProgressCard path="test.tf" status="creating" />)
-    expect(screen.getByText('Creating file')).toBeInTheDocument()
-  })
-
-  it('should show writing status', () => {
-    render(<FileProgressCard path="test.tf" status="writing" />)
-    expect(screen.getByText('Writing')).toBeInTheDocument()
-  })
-
-  it('should show filename when complete', () => {
-    render(<FileProgressCard path="infra/modules/vpc/main.tf" status="complete" />)
-    expect(screen.getByText('main.tf')).toBeInTheDocument()
-  })
-
-  it('should render card when complete', () => {
-    render(<FileProgressCard path="infra/modules/vpc/main.tf" status="complete" />)
-    expect(screen.getByText('main.tf')).toBeInTheDocument()
-    expect(screen.getByText('infra/modules/vpc/main.tf')).toBeInTheDocument()
-  })
-
-  it('should render card when writing', () => {
-    render(<FileProgressCard path="test.tf" status="writing" />)
-    expect(screen.getByText('Writing')).toBeInTheDocument()
-    expect(screen.getByText('test.tf')).toBeInTheDocument()
-  })
-
-  it('should show right arrow when complete', () => {
-    render(<FileProgressCard path="test.tf" status="complete" />)
-    const arrow = screen.getByText('→')
-    expect(arrow).toBeInTheDocument()
-  })
-
-  it('should handle created status', () => {
-    render(<FileProgressCard path="test.tf" status="created" />)
-    // Created status shows filename (same as complete) - line 57
-    // Multiple elements contain "test.tf" (filename and path) - use getAllByText
-    const elements = screen.getAllByText('test.tf')
-    expect(elements.length).toBeGreaterThan(0)
-    expect(screen.getByText('→')).toBeInTheDocument() // Right arrow should show
-  })
-
-  it('should handle default status in getStatusText (line 59)', () => {
-    render(<FileProgressCard path="test.tf" status="unknown" as any />)
-    expect(screen.getByText('Processing')).toBeInTheDocument()
-  })
-
-  it('should handle default status in getStatusColor (line 73)', () => {
+  it('should handle default status in getStatusText and getStatusColor', () => {
     const { container } = render(<FileProgressCard path="test.tf" status="unknown" as any />)
-    // Find the card wrapper (has border classes)
-    const card = container.querySelector('.border-slate-700\\/50')
-    expect(card).toBeInTheDocument()
+    expect(screen.getByText('Processing')).toBeInTheDocument()
+    expect(container.querySelector('.border-slate-700\\/50')).toBeInTheDocument()
   })
 
-  it('should handle click when file is created', async () => {
+  it('should handle click events correctly (selectFile for complete/created, no action for creating/writing)', async () => {
     const user = userEvent.setup()
-    render(<FileProgressCard path="infra/main.tf" status="created" />)
-    // Find clickable card (has cursor-pointer class when created)
-    const card = screen.getByText('main.tf').closest('div[class*="cursor-pointer"]')
-    if (card) {
-      await user.click(card as HTMLElement)
-      expect(mockSelectFile).toHaveBeenCalledWith('infra/main.tf')
-    } else {
-      // Verify card renders
-      expect(screen.getByText('main.tf')).toBeInTheDocument()
+    
+    // Test complete and created status - should call selectFile
+    const clickableStatuses = ['complete', 'created'] as const
+    for (const status of clickableStatuses) {
+      const path = 'infra/main.tf'
+      const { unmount } = render(<FileProgressCard path={path} status={status} />)
+      const card = screen.getByText('main.tf').closest('div[class*="cursor-pointer"]')
+      if (card) {
+        await user.click(card as HTMLElement)
+        expect(mockSelectFile).toHaveBeenCalledWith(path)
+      }
+      mockSelectFile.mockClear()
+      unmount()
+    }
+    
+    // Test creating and writing status - should NOT call selectFile
+    const nonClickableStatuses = ['creating', 'writing'] as const
+    for (const status of nonClickableStatuses) {
+      const { unmount } = render(<FileProgressCard path="test.tf" status={status} />)
+      const card = screen.getByText(status === 'creating' ? 'Creating file' : 'Writing').closest('div')
+      if (card) {
+        await user.click(card as HTMLElement)
+        expect(mockSelectFile).not.toHaveBeenCalled()
+      }
+      unmount()
     }
   })
 
-  it('should not call selectFile when clicking on creating status (else condition line 17)', async () => {
-    const user = userEvent.setup()
-    render(<FileProgressCard path="test.tf" status="creating" />)
-    const card = screen.getByText('Creating file').closest('div')
-    if (card) {
-      await user.click(card as HTMLElement)
-      // selectFile should NOT be called when status is 'creating'
-      expect(mockSelectFile).not.toHaveBeenCalled()
-    }
-  })
+  it('should handle path edge cases in getFileName (no slash, empty, ending with slash)', () => {
+    const testCases = [
+      { path: 'main.tf', description: 'path without slash' },
+      { path: '', description: 'empty path' },
+      { path: 'infra/modules/vpc/', description: 'path ending with slash' },
+    ]
 
-  it('should not call selectFile when clicking on writing status (else condition line 17)', async () => {
-    const user = userEvent.setup()
-    render(<FileProgressCard path="test.tf" status="writing" />)
-    const card = screen.getByText('Writing').closest('div')
-    if (card) {
-      await user.click(card as HTMLElement)
-      // selectFile should NOT be called when status is 'writing'
-      expect(mockSelectFile).not.toHaveBeenCalled()
-    }
-  })
-
-  it('should handle path without slash (path fallback line 45)', () => {
-    render(<FileProgressCard path="main.tf" status="complete" />)
-    // When path has no '/', getFileName should return the path itself
-    // parts = ['main.tf'], parts[parts.length - 1] = 'main.tf', so it returns 'main.tf'
-    // Both filename and path display 'main.tf', so use getAllByText
-    const elements = screen.getAllByText('main.tf')
-    expect(elements.length).toBeGreaterThan(0)
-  })
-
-  it('should handle empty path (path fallback line 45)', () => {
-    const { container } = render(<FileProgressCard path="" status="complete" />)
-    // When path is empty, getFileName should return empty string (parts[parts.length - 1] || path)
-    // parts = [''], parts[parts.length - 1] = '', so it returns path which is ''
-    // The component should still render
-    expect(container).toBeInTheDocument()
-    // Verify the path is displayed (empty string)
-    const pathElement = container.querySelector('.text-xs.font-mono.text-slate-400')
-    expect(pathElement).toBeInTheDocument()
-  })
-
-  it('should handle path ending with slash (path fallback line 45)', () => {
-    render(<FileProgressCard path="infra/modules/vpc/" status="complete" />)
-    // When path ends with '/', parts = ['infra', 'modules', 'vpc', '']
-    // parts[parts.length - 1] = '' (empty string), so it falls back to path
-    // Both filename and path display 'infra/modules/vpc/', so use getAllByText
-    const elements = screen.getAllByText('infra/modules/vpc/')
-    expect(elements.length).toBeGreaterThan(0)
+    testCases.forEach(({ path, description }) => {
+      const { container, unmount } = render(<FileProgressCard path={path} status="complete" />)
+      
+      if (path === '') {
+        // Empty path - component should still render
+        expect(container).toBeInTheDocument()
+        expect(container.querySelector('.text-xs.font-mono.text-slate-400')).toBeInTheDocument()
+      } else {
+        // Path should be displayed
+        const elements = screen.getAllByText(path)
+        expect(elements.length).toBeGreaterThan(0)
+      }
+      
+      unmount()
+    })
   })
 })
 

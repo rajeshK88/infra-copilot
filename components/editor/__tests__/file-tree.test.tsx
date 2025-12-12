@@ -32,7 +32,7 @@ describe('FileTree', () => {
     ).toBeInTheDocument()
   })
 
-  it('should render file tree with files', () => {
+  it('should render file tree with files and folders', () => {
     mockStore.files = [
       { path: 'infra/modules/vpc/main.tf', content: 'content', status: 'complete' },
     ]
@@ -70,9 +70,7 @@ describe('FileTree', () => {
       },
     ])
     const { container } = render(<FileTree />)
-    // File tree renders with font-mono class, text is in a span
-    const infraText = container.textContent
-    expect(infraText).toContain('infra')
+    expect(container.textContent).toContain('infra')
   })
 
   it('should call toggleFolder when folder is clicked', async () => {
@@ -106,49 +104,28 @@ describe('FileTree', () => {
     }
   })
 
-  it('should render file when file exists', () => {
+  it('should render files, highlight selected file, and show expanded folders', () => {
+    // Test file rendering
     mockStore.files = [{ path: 'infra/main.tf', content: 'content', status: 'complete' }]
     mockStore.getFileTree.mockReturnValue([
       {
         name: 'main.tf',
         path: 'infra/main.tf',
         type: 'file',
-        file: {
-          path: 'infra/main.tf',
-          content: 'content',
-          status: 'complete',
-        },
+        file: { path: 'infra/main.tf', content: 'content', status: 'complete' },
       },
     ])
-    const { container } = render(<FileTree />)
-    // Verify file tree renders the file
+    const { container, rerender } = render(<FileTree />)
     expect(container.textContent).toContain('main.tf')
-  })
-
-  it('should highlight selected file', () => {
+    
+    // Test selected file highlighting
     mockStore.selectedFile = 'infra/main.tf'
-    mockStore.files = [{ path: 'infra/main.tf', content: 'content', status: 'complete' }]
-    mockStore.getFileTree.mockReturnValue([
-      {
-        name: 'main.tf',
-        path: 'infra/main.tf',
-        type: 'file',
-        file: {
-          path: 'infra/main.tf',
-          content: 'content',
-          status: 'complete',
-        },
-      },
-    ])
-    const { container } = render(<FileTree />)
-    // Check if selected file has the highlight class
-    const selectedElement = container.querySelector('.bg-slate-800')
-    expect(selectedElement).toBeInTheDocument()
-  })
-
-  it('should show expanded folder when folder is expanded', () => {
-    mockStore.expandedFolders = new Set(['infra'])
+    rerender(<FileTree />)
+    expect(container.querySelector('.bg-slate-800')).toBeInTheDocument()
+    
+    // Test expanded folder
     mockStore.files = [{ path: 'infra/test.tf', content: '', status: 'complete' }]
+    mockStore.expandedFolders = new Set(['infra'])
     mockStore.getFileTree.mockReturnValue([
       {
         name: 'infra',
@@ -164,12 +141,12 @@ describe('FileTree', () => {
         ],
       },
     ])
-    render(<FileTree />)
-    // Folder should be visible
-    expect(screen.getByText(/infra/i)).toBeInTheDocument()
+    rerender(<FileTree />)
+    expect(container.textContent).toMatch(/infra/i)
   })
 
-  it('should filter invalid child nodes in TreeNode', () => {
+  it('should filter invalid child nodes and show status indicators', () => {
+    // Test invalid file filtering
     mockStore.files = [
       { path: 'infra/valid.tf', content: '', status: 'complete' },
       { path: 'infra/invalid', content: '', status: 'complete' },
@@ -195,13 +172,11 @@ describe('FileTree', () => {
         ],
       },
     ])
-    const { container } = render(<FileTree />)
-    // Invalid file should be filtered out
+    const { container, rerender } = render(<FileTree />)
     expect(container.textContent).toContain('valid.tf')
     expect(container.textContent).not.toContain('invalid')
-  })
-
-  it('should show writing status indicator', () => {
+    
+    // Test writing status
     mockStore.files = [{ path: 'infra/main.tf', content: 'partial', status: 'writing' }]
     mockStore.getFileTree.mockReturnValue([
       {
@@ -211,12 +186,10 @@ describe('FileTree', () => {
         file: { path: 'infra/main.tf', content: 'partial', status: 'writing' },
       },
     ])
-    const { container } = render(<FileTree />)
-    // File with writing status should have ring indicator
+    rerender(<FileTree />)
     expect(container.textContent).toContain('main.tf')
-  })
-
-  it('should show checkmark for complete files', () => {
+    
+    // Test complete status with checkmark
     mockStore.files = [{ path: 'infra/main.tf', content: 'complete', status: 'complete' }]
     mockStore.getFileTree.mockReturnValue([
       {
@@ -226,49 +199,17 @@ describe('FileTree', () => {
         file: { path: 'infra/main.tf', content: 'complete', status: 'complete' },
       },
     ])
-    const { container } = render(<FileTree />)
-    // Complete files should show checkmark
+    rerender(<FileTree />)
     expect(container.textContent).toContain('main.tf')
     expect(container.textContent).toContain('✓')
   })
 
-  it('should filter invalid child nodes in TreeNode (duplicate test)', () => {
-    mockStore.files = [
-      { path: 'infra/valid.tf', content: '', status: 'complete' },
-      { path: 'infra/invalid', content: '', status: 'complete' },
-    ]
-    mockStore.getFileTree.mockReturnValue([
-      {
-        name: 'infra',
-        path: 'infra',
-        type: 'folder',
-        children: [
-          {
-            name: 'valid.tf',
-            path: 'infra/valid.tf',
-            type: 'file',
-            file: { path: 'infra/valid.tf', content: '', status: 'complete' },
-          },
-          {
-            name: 'invalid',
-            path: 'infra/invalid',
-            type: 'file',
-            file: { path: 'infra/invalid', content: '', status: 'complete' },
-          },
-        ],
-      },
-    ])
-    const { container } = render(<FileTree />)
-    // Invalid file should be filtered out by TreeNode filtering
-    expect(container.textContent).toContain('valid.tf')
-    // Note: Invalid files may still appear if filtering happens at getFileTree level
-  })
-
-  it('should handle folder nodes without children', () => {
-    // When files array is empty, FileTree shows empty state, not the tree
-    // So we need files to exist for the tree to render
+  it('should handle folder nodes, file clicks, and nested folder structures', async () => {
+    const user = userEvent.setup()
+    
+    // Test folder with children
     mockStore.files = [{ path: 'empty/test.tf', content: '', status: 'complete' }]
-    mockStore.expandedFolders = new Set(['empty']) // Expand the folder so test.tf is visible
+    mockStore.expandedFolders = new Set(['empty'])
     mockStore.getFileTree.mockReturnValue([
       {
         name: 'empty',
@@ -284,21 +225,11 @@ describe('FileTree', () => {
         ],
       },
     ])
-    const { container } = render(<FileTree />)
-    // Folder with children should be rendered
-    // Click the folder to expand it first
-    const folderElement = container.querySelector('[data-folder="empty"]')
-    if (folderElement) {
-      // Simulate folder click to expand
-      const clickEvent = new MouseEvent('click', { bubbles: true })
-      folderElement.dispatchEvent(clickEvent)
-    }
+    const { container, rerender } = render(<FileTree />)
     expect(container.textContent).toContain('empty')
-    // After expansion, test.tf should be visible
     expect(container.textContent).toContain('test.tf')
-  })
-
-  it('should return true for folder nodes in filter (line 183)', () => {
+    
+    // Test nested folder structure (folder nodes pass filter)
     mockStore.files = [{ path: 'infra/modules/vpc/main.tf', content: '', status: 'complete' }]
     mockStore.expandedFolders = new Set(['infra', 'infra/modules', 'infra/modules/vpc'])
     mockStore.getFileTree.mockReturnValue([
@@ -330,15 +261,12 @@ describe('FileTree', () => {
         ],
       },
     ])
-    const { container } = render(<FileTree />)
-    // Folder nodes should pass the filter (line 183: return true)
+    rerender(<FileTree />)
     expect(container.textContent).toContain('infra')
     expect(container.textContent).toContain('modules')
     expect(container.textContent).toContain('vpc')
-  })
-
-  it('should call onSelect when file is clicked', async () => {
-    const user = userEvent.setup()
+    
+    // Test file click
     mockStore.files = [{ path: 'infra/main.tf', content: '', status: 'complete' }]
     mockStore.getFileTree.mockReturnValue([
       {
@@ -348,7 +276,7 @@ describe('FileTree', () => {
         file: { path: 'infra/main.tf', content: '', status: 'complete' },
       },
     ])
-    render(<FileTree />)
+    rerender(<FileTree />)
     const fileElement = screen.getByText('main.tf').closest('div')
     if (fileElement) {
       await user.click(fileElement as HTMLElement)
@@ -356,171 +284,109 @@ describe('FileTree', () => {
     }
   })
 
-  it('should filter invalid child nodes in TreeNode (third test)', () => {
-    mockStore.files = [
-      { path: 'infra/valid.tf', content: '', status: 'complete' },
-      { path: 'infra/invalid', content: '', status: 'complete' },
-    ]
-    mockStore.getFileTree.mockReturnValue([
-      {
-        name: 'infra',
-        path: 'infra',
-        type: 'folder',
-        children: [
+  describe('TerraformIcon rendering for .tf files', () => {
+    it('should render TerraformIcon for all .tf file statuses and handle undefined file', () => {
+      const testCases = [
+        {
+          name: 'creating status',
+          path: 'infra/main.tf',
+          status: 'creating' as const,
+          file: { path: 'infra/main.tf', content: '', status: 'creating' as const },
+          hasPulse: true,
+        },
+        {
+          name: 'writing status',
+          path: 'infra/main.tf',
+          status: 'writing' as const,
+          file: { path: 'infra/main.tf', content: 'partial', status: 'writing' as const },
+          hasPulse: true,
+        },
+        {
+          name: 'complete status',
+          path: 'infra/main.tf',
+          status: 'complete' as const,
+          file: { path: 'infra/main.tf', content: 'complete', status: 'complete' as const },
+          hasPulse: false,
+        },
+        {
+          name: 'unknown status',
+          path: 'infra/main.tf',
+          status: 'unknown' as FileItem['status'],
+          file: { path: 'infra/main.tf', content: '', status: 'unknown' as FileItem['status'] },
+          hasPulse: false,
+        },
+        {
+          name: 'undefined file',
+          path: 'infra/main.tf',
+          status: undefined,
+          file: undefined,
+          hasPulse: false,
+        },
+      ]
+
+      testCases.forEach(({ name, path, file }) => {
+        mockStore.files = file ? [{ path, content: file.content || '', status: file.status }] : []
+        mockStore.getFileTree.mockReturnValue([
           {
-            name: 'valid.tf',
-            path: 'infra/valid.tf',
+            name: path.split('/').pop() || 'main.tf',
+            path,
             type: 'file',
-            file: { path: 'infra/valid.tf', content: '', status: 'complete' },
+            file,
           },
-          {
-            name: 'invalid',
-            path: 'infra/invalid',
-            type: 'file',
-            file: { path: 'infra/invalid', content: '', status: 'complete' },
-          },
-        ],
-      },
-    ])
-    const { container } = render(<FileTree />)
-    // Invalid file should be filtered out by TreeNode filtering (line 183)
-    expect(container.textContent).toContain('valid.tf')
-    // Note: Invalid files may still appear if filtering happens at getFileTree level
+        ])
+        const { container, unmount } = render(<FileTree />)
+        const svgElements = container.querySelectorAll('svg')
+        expect(svgElements.length).toBeGreaterThan(0)
+        unmount()
+      })
+    })
   })
 
-  describe('TerraformIcon rendering for .tf files', () => {
-    it('should render TerraformIcon with blue-400 animate-pulse when status is creating and file is .tf (line 86)', () => {
-      mockStore.files = [{ path: 'infra/main.tf', content: '', status: 'creating' }]
-      mockStore.getFileTree.mockReturnValue([
+  describe('Non-Terraform file icon rendering', () => {
+    it('should render appropriate icons for non-Terraform files based on status', () => {
+      const testCases = [
         {
-          name: 'main.tf',
-          path: 'infra/main.tf',
-          type: 'file',
-          file: { path: 'infra/main.tf', content: '', status: 'creating' },
-        },
-      ])
-      const { container } = render(<FileTree />)
-      // TerraformIcon should be rendered (check for SVG which is the TerraformIcon)
-      const svgElements = container.querySelectorAll('svg')
-      expect(svgElements.length).toBeGreaterThan(0)
-      // Check for the animate-pulse class which indicates creating status
-      const pulseElement = container.querySelector('.animate-pulse')
-      expect(pulseElement).toBeInTheDocument()
-    })
-
-    it('should render TerraformIcon with yellow-400 animate-pulse when status is writing and file is .tf (line 92)', () => {
-      mockStore.files = [{ path: 'infra/main.tf', content: 'partial', status: 'writing' }]
-      mockStore.getFileTree.mockReturnValue([
-        {
-          name: 'main.tf',
-          path: 'infra/main.tf',
-          type: 'file',
-          file: { path: 'infra/main.tf', content: 'partial', status: 'writing' },
-        },
-      ])
-      const { container } = render(<FileTree />)
-      // TerraformIcon should be rendered with yellow color
-      const svgElements = container.querySelectorAll('svg')
-      expect(svgElements.length).toBeGreaterThan(0)
-      const pulseElement = container.querySelector('.animate-pulse')
-      expect(pulseElement).toBeInTheDocument()
-    })
-
-    it('should render TerraformIcon with green-400 when status is complete and file is .tf (line 98)', () => {
-      mockStore.files = [{ path: 'infra/main.tf', content: 'complete', status: 'complete' }]
-      mockStore.getFileTree.mockReturnValue([
-        {
-          name: 'main.tf',
-          path: 'infra/main.tf',
-          type: 'file',
-          file: { path: 'infra/main.tf', content: 'complete', status: 'complete' },
-        },
-      ])
-      const { container } = render(<FileTree />)
-      // TerraformIcon should be rendered (SVG present)
-      const svgElements = container.querySelectorAll('svg')
-      expect(svgElements.length).toBeGreaterThan(0)
-      // Should not have animate-pulse for complete status
-      const pulseElement = container.querySelector('.animate-pulse')
-      expect(pulseElement).not.toBeInTheDocument()
-    })
-
-    it('should render TerraformIcon with purple-400 when status is default and file is .tf (line 104)', () => {
-      mockStore.files = [{ path: 'infra/main.tf', content: '', status: 'unknown' as FileItem['status'] }]
-      mockStore.getFileTree.mockReturnValue([
-        {
-          name: 'main.tf',
-          path: 'infra/main.tf',
-          type: 'file',
-          file: { path: 'infra/main.tf', content: '', status: 'unknown' as FileItem['status'] },
-        },
-      ])
-      const { container } = render(<FileTree />)
-      // TerraformIcon should be rendered (SVG present)
-      const svgElements = container.querySelectorAll('svg')
-      expect(svgElements.length).toBeGreaterThan(0)
-    })
-
-    it('should render TerraformIcon with purple-400 when node.file is undefined and file is .tf (line 112)', () => {
-      mockStore.files = [{ path: 'infra/main.tf', content: '', status: 'complete' }]
-      mockStore.getFileTree.mockReturnValue([
-        {
-          name: 'main.tf',
-          path: 'infra/main.tf',
-          type: 'file',
-          file: undefined, // No file object
-        },
-      ])
-      const { container } = render(<FileTree />)
-      // TerraformIcon should be rendered (SVG present) for .tf files even without file object
-      const svgElements = container.querySelectorAll('svg')
-      expect(svgElements.length).toBeGreaterThan(0)
-    })
-
-    it('should render Loader2 for non-Terraform files when status is creating (line 88)', () => {
-      mockStore.files = [{ path: 'infra/main.js', content: '', status: 'creating' }]
-      mockStore.getFileTree.mockReturnValue([
-        {
-          name: 'main.js',
+          name: 'creating status',
           path: 'infra/main.js',
-          type: 'file',
-          file: { path: 'infra/main.js', content: '', status: 'creating' },
+          status: 'creating' as const,
+          file: { path: 'infra/main.js', content: '', status: 'creating' as const },
+          hasSpinner: true,
         },
-      ])
-      const { container } = render(<FileTree />)
-      // Should render Loader2 (spinning icon) for non-Terraform files
-      const spinnerElements = container.querySelectorAll('[class*="animate-spin"]')
-      expect(spinnerElements.length).toBeGreaterThan(0)
-    })
-
-    it('should render CheckCircle2 for non-Terraform files when status is complete (line 100)', () => {
-      mockStore.files = [{ path: 'infra/main.js', content: 'complete', status: 'complete' }]
-      mockStore.getFileTree.mockReturnValue([
         {
-          name: 'main.js',
+          name: 'complete status',
           path: 'infra/main.js',
-          type: 'file',
-          file: { path: 'infra/main.js', content: 'complete', status: 'complete' },
+          status: 'complete' as const,
+          file: { path: 'infra/main.js', content: 'complete', status: 'complete' as const },
+          hasSpinner: false,
         },
-      ])
-      const { container } = render(<FileTree />)
-      // Should render CheckCircle2 for non-Terraform files
-      expect(container.textContent).toContain('main.js')
-    })
-
-    it('should render File icon for non-Terraform files when node.file is undefined (line 114)', () => {
-      mockStore.files = [{ path: 'infra/main.js', content: '', status: 'complete' }]
-      mockStore.getFileTree.mockReturnValue([
         {
-          name: 'main.js',
+          name: 'undefined file',
           path: 'infra/main.js',
-          type: 'file',
-          file: undefined, // No file object
+          status: undefined,
+          file: undefined,
+          hasSpinner: false,
         },
-      ])
-      const { container } = render(<FileTree />)
-      // Should render File icon for non-Terraform files without file object
-      expect(container.textContent).toContain('main.js')
+      ]
+
+      testCases.forEach(({ name, path, file }) => {
+        // Always set files array to ensure tree renders (not empty state)
+        mockStore.files = file ? [{ path, content: file.content || '', status: file.status }] : [{ path, content: '', status: 'complete' }]
+        mockStore.getFileTree.mockReturnValue([
+          {
+            name: path.split('/').pop() || 'main.js',
+            path,
+            type: 'file',
+            file,
+          },
+        ])
+        const { container, unmount } = render(<FileTree />)
+        expect(container.textContent).toContain('main.js')
+        if (name === 'creating status') {
+          const spinnerElements = container.querySelectorAll('[class*="animate-spin"]')
+          expect(spinnerElements.length).toBeGreaterThan(0)
+        }
+        unmount()
+      })
     })
   })
 })

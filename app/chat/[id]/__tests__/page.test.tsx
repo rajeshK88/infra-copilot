@@ -1,7 +1,6 @@
+import { Blueprint, getBlueprintById } from '@/lib/blueprints'
 import { render } from '@testing-library/react'
 import ChatPage from '../page'
-import { getBlueprintById } from '@/lib/blueprints'
-import { Blueprint } from '@/lib/blueprints'
 
 jest.mock('@/lib/blueprints', () => ({
   getBlueprintById: jest.fn(),
@@ -21,15 +20,13 @@ jest.mock('@/components/layout/main-layout', () => ({
   ),
 }))
 
-const mockNotFound = jest.fn()
 jest.mock('next/navigation', () => ({
-  notFound: () => {
-    mockNotFound()
+  notFound: jest.fn(() => {
     throw new Error('notFound called')
-  },
+  }),
 }))
 
-const mockBlueprint = {
+const mockBlueprint: Blueprint = {
   id: '1',
   slug: 'test',
   name: 'Test Blueprint',
@@ -46,86 +43,38 @@ const mockBlueprint = {
 describe('ChatPage', () => {
   beforeEach(() => {
     jest.clearAllMocks()
-    mockNotFound.mockClear()
   })
 
-  it('should render chat page with blueprint', async () => {
+  it('should render chat page with blueprint and call getBlueprintById with correct id', async () => {
     ;(getBlueprintById as jest.Mock).mockReturnValue(mockBlueprint)
     const props = {
       params: Promise.resolve({ id: '1' }),
     }
     const page = await ChatPage(props)
     const { container } = render(page)
+    
+    expect(getBlueprintById).toHaveBeenCalledWith('1')
     expect(container.querySelector('[data-testid="copilotkit"]')).toBeInTheDocument()
     expect(container.querySelector('[data-runtime-url="/api/copilotkit"]')).toBeInTheDocument()
   })
 
-  it('should call getBlueprintById with correct id', async () => {
-    ;(getBlueprintById as jest.Mock).mockReturnValue(mockBlueprint)
-    const props = {
-      params: Promise.resolve({ id: '1' }),
-    }
-    await ChatPage(props)
-    expect(getBlueprintById).toHaveBeenCalledWith('1')
-  })
+  it('should call notFound when blueprint does not exist (undefined or null)', async () => {
+    const { notFound } = await import('next/navigation')
+    const testCases = [
+      { id: '999', blueprint: undefined },
+      { id: 'null-id', blueprint: null },
+    ]
 
-  it('should handle blueprint not found and call notFound (line 15)', async () => {
-    ;(getBlueprintById as jest.Mock).mockReturnValue(undefined)
-    const props = {
-      params: Promise.resolve({ id: '999' }),
-    }
-    try {
-      await ChatPage(props)
-      // If we reach here, notFound wasn't called - fail the test
-      fail('Expected notFound to be called')
-    } catch {
-      // notFound throws an error - this is expected (line 15: notFound())
-      expect(mockNotFound).toHaveBeenCalled()
-    }
-  })
-
-  it('should handle blueprint not found with different id', async () => {
-    ;(getBlueprintById as jest.Mock).mockReturnValue(undefined)
-    const props = {
-      params: Promise.resolve({ id: 'non-existent' }),
-    }
-    try {
-      await ChatPage(props)
-      fail('Expected notFound to be called')
-    } catch {
-      // Verify notFound was called when blueprint is not found
-      expect(mockNotFound).toHaveBeenCalled()
-    }
-  })
-
-  it('should call getBlueprintById with correct id when blueprint not found', async () => {
-    ;(getBlueprintById as jest.Mock).mockReturnValue(undefined)
-    const props = {
-      params: Promise.resolve({ id: 'invalid-id' }),
-    }
-    try {
-      await ChatPage(props)
-      fail('Expected notFound to be called')
-    } catch {
-      // Verify getBlueprintById was called with the correct id
-      expect(getBlueprintById).toHaveBeenCalledWith('invalid-id')
-      expect(mockNotFound).toHaveBeenCalled()
-    }
-  })
-
-  it('should handle blueprint not found with null value', async () => {
-    ;(getBlueprintById as jest.Mock).mockReturnValue(null)
-    const props = {
-      params: Promise.resolve({ id: 'null-id' }),
-    }
-    try {
-      await ChatPage(props)
-      fail('Expected notFound to be called')
-    } catch {
-      // Verify notFound was called when blueprint is null
-      expect(mockNotFound).toHaveBeenCalled()
-      expect(getBlueprintById).toHaveBeenCalledWith('null-id')
+    for (const { id, blueprint } of testCases) {
+      ;(getBlueprintById as jest.Mock).mockReturnValue(blueprint)
+      const props = {
+        params: Promise.resolve({ id }),
+      }
+      
+      await expect(ChatPage(props)).rejects.toThrow('notFound called')
+      expect(getBlueprintById).toHaveBeenCalledWith(id)
+      expect(notFound).toHaveBeenCalled()
+      jest.clearAllMocks()
     }
   })
 })
-

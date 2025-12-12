@@ -31,35 +31,27 @@ const mockSteps = [
 ]
 
 describe('BlueprintStepsCard', () => {
-  it('should render all steps', () => {
+  it('should render all steps with numbers, types, module sources, and workflow steps', () => {
     render(<BlueprintStepsCard steps={mockSteps} />)
+    
+    // Check all step titles
     expect(screen.getByText('VPC Module')).toBeInTheDocument()
     expect(screen.getByText('RDS Module')).toBeInTheDocument()
     expect(screen.getByText('CI/CD Pipeline')).toBeInTheDocument()
-  })
-
-  it('should render step numbers', () => {
-    render(<BlueprintStepsCard steps={mockSteps} />)
+    
+    // Check step numbers
     expect(screen.getByText('1')).toBeInTheDocument()
     expect(screen.getByText('2')).toBeInTheDocument()
     expect(screen.getByText('3')).toBeInTheDocument()
-  })
-
-  it('should render module source when provided', () => {
-    render(<BlueprintStepsCard steps={mockSteps} />)
-    // Module source appears in the card
+    
+    // Check module sources
     const cards = screen.getAllByText(/Public Registry|Custom Module/i)
     expect(cards.length).toBeGreaterThan(0)
-  })
-
-  it('should render workflow steps for GitHub Actions', () => {
-    render(<BlueprintStepsCard steps={mockSteps} />)
+    
+    // Check workflow steps
     expect(screen.getByText('5 steps')).toBeInTheDocument()
-  })
-
-  it('should render step types', () => {
-    render(<BlueprintStepsCard steps={mockSteps} />)
-    // Step types are rendered as labels (may appear multiple times)
+    
+    // Check step types
     const terraformLabels = screen.getAllByText(/TERRAFORM MODULE/i)
     expect(terraformLabels.length).toBeGreaterThan(0)
     expect(screen.getByText(/GITHUB ACTIONS/i)).toBeInTheDocument()
@@ -70,190 +62,72 @@ describe('BlueprintStepsCard', () => {
     expect(container.firstChild).toBeNull()
   })
 
-  it('should handle steps without number', () => {
-    const stepsWithoutNumber = [
+  it('should handle different step types and configurations', () => {
+    const testCases = [
       {
-        title: 'Step 1',
-        type: 'terraform-module',
+        name: 'steps without number',
+        steps: [{ title: 'Step 1', type: 'terraform-module' }],
+        expected: 'Step 1',
+      },
+      {
+        name: 'terraform-environment type',
+        steps: [{ number: 1, title: 'Environment', type: 'terraform-environment' }],
+        expected: /TERRAFORM ENVIRONMENT/i,
+      },
+      {
+        name: 'custom module source',
+        steps: [{ number: 1, title: 'Custom Module', type: 'terraform-module', moduleSource: 'custom' }],
+        expected: /Custom Module/i,
+      },
+      {
+        name: 'steps without moduleSource (defaults to Custom Module)',
+        steps: [{ number: 1, title: 'Step', type: 'terraform-module' }],
+        expected: /Custom Module/i,
       },
     ]
-    render(<BlueprintStepsCard steps={stepsWithoutNumber as Step[]} />)
-    expect(screen.getByText('Step 1')).toBeInTheDocument()
+
+    testCases.forEach(({ name, steps, expected }) => {
+      const { container } = render(<BlueprintStepsCard steps={steps as Step[]} />)
+      if (typeof expected === 'string') {
+        expect(screen.getByText(expected)).toBeInTheDocument()
+      } else {
+        expect(container.textContent).toMatch(expected)
+      }
+    })
+    
+    // Test terraform-environment details separately
+    const envSteps = [{ number: 1, title: 'Environment', type: 'terraform-environment' }]
+    const { container } = render(<BlueprintStepsCard steps={envSteps as Step[]} />)
+    expect(container.textContent).toMatch(/small scale/i)
   })
 
-  it('should handle terraform-environment type', () => {
-    const envSteps = [
-      {
-        number: 1,
-        title: 'Environment',
-        type: 'terraform-environment',
-      },
+  it('should handle edge cases for step type (undefined, null, empty, unknown)', () => {
+    const testCases = [
+      { title: 'Step', type: undefined },
+      { title: 'Unknown Step', type: 'unknown-type' },
+      { title: 'Step', type: '' },
+      { title: 'Step', type: null },
     ]
-    render(<BlueprintStepsCard steps={envSteps as Step[]} />)
-    expect(screen.getByText(/TERRAFORM ENVIRONMENT/i)).toBeInTheDocument()
+
+    testCases.forEach(({ title, type }) => {
+      const { unmount } = render(<BlueprintStepsCard steps={[{ number: 1, title, type }] as Step[]} />)
+      expect(screen.getByText(title)).toBeInTheDocument()
+      unmount()
+    })
   })
 
-  it('should handle custom module source', () => {
-    const customSteps = [
-      {
-        number: 1,
-        title: 'Custom Module',
-        type: 'terraform-module',
-        moduleSource: 'custom',
-      },
+  it('should handle step.title || \'Untitled\' fallback for undefined, null, and empty string', () => {
+    const testCases = [
+      { title: undefined },
+      { title: null },
+      { title: '' },
     ]
-    render(<BlueprintStepsCard steps={customSteps as Step[]} />)
-    // Multiple elements contain "Custom Module" - use getAllByText
-    const elements = screen.getAllByText(/Custom Module/i)
-    expect(elements.length).toBeGreaterThan(0)
-  })
 
-  it('should handle terraform-environment details', () => {
-    const envSteps = [
-      {
-        number: 1,
-        title: 'Environment',
-        type: 'terraform-environment',
-      },
-    ]
-    render(<BlueprintStepsCard steps={envSteps as Step[]} />)
-    expect(screen.getByText(/small scale/i)).toBeInTheDocument()
-  })
-
-  it('should handle steps without moduleSource', () => {
-    const stepsWithoutSource = [
-      {
-        number: 1,
-        title: 'Step',
-        type: 'terraform-module',
-      },
-    ]
-    const { container } = render(<BlueprintStepsCard steps={stepsWithoutSource as Step[]} />)
-    // Default shows "Custom Module"
-    expect(container.textContent).toMatch(/Custom Module/i)
-  })
-
-  it('should handle undefined type in getStepTypeIcon', () => {
-    const noTypeSteps = [
-      {
-        number: 1,
-        title: 'Step',
-        type: undefined,
-      },
-    ]
-    render(<BlueprintStepsCard steps={noTypeSteps as Step[]} />)
-    expect(screen.getByText('Step')).toBeInTheDocument()
-  })
-
-  it('should handle unknown type in getStepTypeIcon', () => {
-    const unknownTypeSteps = [
-      {
-        number: 1,
-        title: 'Unknown Step',
-        type: 'unknown-type',
-      },
-    ]
-    render(<BlueprintStepsCard steps={unknownTypeSteps as Step[]} />)
-    expect(screen.getByText('Unknown Step')).toBeInTheDocument()
-  })
-
-  it('should handle empty type in getStepTypeLabel', () => {
-    const noTypeSteps = [
-      {
-        number: 1,
-        title: 'Step',
-        type: '',
-      },
-    ]
-    render(<BlueprintStepsCard steps={noTypeSteps as Step[]} />)
-    expect(screen.getByText('Step')).toBeInTheDocument()
-  })
-
-  it('should handle null type in getStepTypeColor', () => {
-    const nullTypeSteps = [
-      {
-        number: 1,
-        title: 'Step',
-        type: null,
-      },
-    ]
-    render(<BlueprintStepsCard steps={nullTypeSteps as Step[]} />)
-    expect(screen.getByText('Step')).toBeInTheDocument()
-  })
-
-  it('should handle getStepTypeIcon returning null (line 58)', () => {
-    const unknownTypeSteps = [
-      {
-        number: 1,
-        title: 'Unknown Step',
-        type: 'unknown-type',
-      },
-    ]
-    render(<BlueprintStepsCard steps={unknownTypeSteps as Step[]} />)
-    // Should render without crashing when icon is null
-    expect(screen.getByText('Unknown Step')).toBeInTheDocument()
-  })
-
-  it('should handle getStepTypeLabel with empty type (line 66)', () => {
-    const noTypeSteps = [
-      {
-        number: 1,
-        title: 'Step',
-        type: '',
-      },
-    ]
-    render(<BlueprintStepsCard steps={noTypeSteps as Step[]} />)
-    // Should return empty string for empty type
-    expect(screen.getByText('Step')).toBeInTheDocument()
-  })
-
-  it('should handle getStepTypeColor with null type (line 74)', () => {
-    const nullTypeSteps = [
-      {
-        number: 1,
-        title: 'Step',
-        type: null,
-      },
-    ]
-    render(<BlueprintStepsCard steps={nullTypeSteps as Step[]} />)
-    // Should return default color for null type
-    expect(screen.getByText('Step')).toBeInTheDocument()
-  })
-
-  it('should handle step.title || \'Untitled\' when title is undefined (line 144)', () => {
-    const stepsWithUndefinedTitle = [
-      {
-        number: 1,
-        title: undefined,
-        type: 'terraform-module',
-      },
-    ]
-    render(<BlueprintStepsCard steps={stepsWithUndefinedTitle as Step[]} />)
-    expect(screen.getByText('Untitled')).toBeInTheDocument()
-  })
-
-  it('should handle step.title || \'Untitled\' when title is null', () => {
-    const stepsWithNullTitle = [
-      {
-        number: 1,
-        title: null,
-        type: 'terraform-module',
-      },
-    ]
-    render(<BlueprintStepsCard steps={stepsWithNullTitle as Step[]} />)
-    expect(screen.getByText('Untitled')).toBeInTheDocument()
-  })
-
-  it('should handle step.title || \'Untitled\' when title is empty string', () => {
-    const stepsWithEmptyTitle = [
-      {
-        number: 1,
-        title: '',
-        type: 'terraform-module',
-      },
-    ]
-    render(<BlueprintStepsCard steps={stepsWithEmptyTitle as Step[]} />)
-    expect(screen.getByText('Untitled')).toBeInTheDocument()
+    testCases.forEach(({ title }) => {
+      const { unmount } = render(<BlueprintStepsCard steps={[{ number: 1, title, type: 'terraform-module' }] as Step[]} />)
+      expect(screen.getByText('Untitled')).toBeInTheDocument()
+      unmount()
+    })
   })
 })
 
