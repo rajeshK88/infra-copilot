@@ -1,0 +1,96 @@
+@import 'tailwindcss';
+
+:root {
+  --background: 222.2 84% 4.9%;
+  --foreground: 210 40% 98%;
+  --muted: 217.2 32.6% 17.5%;
+  --muted-foreground: 215 20.2% 65.1%;
+  --border: 217.2 32.6% 17.5%;
+  --primary: 210 40% 98%;
+  --primary-foreground: 222.2 47.4% 11.2%;
+}
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-border: hsl(var(--border));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+/* Hide CopilotKit Web Inspector floating button */
+cpk-web-inspector {
+  display: none !important;
+  visibility: hidden !important;
+}
+
+/* Position sidebar on the left and shift content when open */
+.copilotKitSidebar .copilotKitWindow {
+  left: 0 !important;
+  right: auto !important;
+  transform: translateX(-100%) !important;
+}
+
+.copilotKitSidebar .copilotKitWindow.open {
+  transform: translateX(0) !important;
+}
+
+.copilotKitSidebarContentWrapper.sidebarExpanded {
+  margin-left: 28rem !important;
+}
+
+/* Custom scrollbar styling for chat panel */
+.overflow-y-auto::-webkit-scrollbar {
+  width: 8px;
+}
+
+.overflow-y-auto::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+  border-radius: 4px;
+}
+
+.overflow-y-auto::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground));
+  border-radius: 4px;
+}
+
+.overflow-y-auto::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--foreground) / 0.6);
+}
+
+/* Ensure CopilotChat input stays at bottom */
+.copilotKitChat {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+}
+
+.copilotKitMessages {
+  flex: 1 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  min-height: 0 !important;
+}
+
+.copilotKitInputContainer {
+  flex-shrink: 0 !important;
+  position: sticky !important;
+  bottom: 0 !important;
+  background: hsl(var(--background)) !important;
+  border-top: 1px solid hsl(var(--border)) !important;
+  z-index: 10 !important;
+  margin-top: auto !important;
+}
+
+.copilotKitInput {
+  position: relative !important;
+}
