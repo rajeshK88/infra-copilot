@@ -86,7 +86,7 @@ describe('BlueprintStepsCard', () => {
       },
     ]
 
-    testCases.forEach(({ name, steps, expected }) => {
+    testCases.forEach(({ name: _name, steps, expected }) => {
       const { container } = render(<BlueprintStepsCard steps={steps as Step[]} />)
       if (typeof expected === 'string') {
         expect(screen.getByText(expected)).toBeInTheDocument()

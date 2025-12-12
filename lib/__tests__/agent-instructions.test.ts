@@ -85,7 +85,7 @@ describe('agent-instructions', () => {
         },
       ]
 
-      testCases.forEach(({ name, step, expected }) => {
+      testCases.forEach(({ name: _name, step, expected }) => {
         const templates = getTemplateForStep(step as BlueprintStep)
         expect(templates.main).toBeDefined()
         if (expected.hasVariables) {
@@ -196,7 +196,7 @@ describe('agent-instructions', () => {
         },
       ]
 
-      testCases.forEach(({ name, step, expected }) => {
+      testCases.forEach(({ name: _name, step, expected }) => {
         const templates = getTemplateForStep(step as BlueprintStep)
         expect(templates.main).toBeDefined()
         if (expected.hasVariables !== undefined) {

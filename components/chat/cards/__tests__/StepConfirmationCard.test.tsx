@@ -86,7 +86,7 @@ describe('StepConfirmationCard', () => {
       },
     ]
 
-    testCases.forEach(({ name, step, expected }) => {
+    testCases.forEach(({ name: _name, step, expected }) => {
       const { unmount } = render(
         <StepConfirmationCard step={step as Step} onConfirm={jest.fn()} onCancel={jest.fn()} />
       )

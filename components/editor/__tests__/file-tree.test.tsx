@@ -324,7 +324,7 @@ describe('FileTree', () => {
         },
       ]
 
-      testCases.forEach(({ name, path, file }) => {
+      testCases.forEach(({ name: _name, path, file }) => {
         mockStore.files = file ? [{ path, content: file.content || '', status: file.status }] : []
         mockStore.getFileTree.mockReturnValue([
           {
@@ -368,7 +368,7 @@ describe('FileTree', () => {
         },
       ]
 
-      testCases.forEach(({ name, path, file }) => {
+      testCases.forEach(({ name: _name, path, file }) => {
         // Always set files array to ensure tree renders (not empty state)
         mockStore.files = file ? [{ path, content: file.content || '', status: file.status }] : [{ path, content: '', status: 'complete' }]
         mockStore.getFileTree.mockReturnValue([

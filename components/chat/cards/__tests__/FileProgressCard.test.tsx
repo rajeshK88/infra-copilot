@@ -90,7 +90,7 @@ describe('FileProgressCard', () => {
       { path: 'infra/modules/vpc/', description: 'path ending with slash' },
     ]
 
-    testCases.forEach(({ path, description }) => {
+    testCases.forEach(({ path, description: _description }) => {
       const { container, unmount } = render(<FileProgressCard path={path} status="complete" />)
       
       if (path === '') {

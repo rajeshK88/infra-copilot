@@ -134,7 +134,7 @@ describe('MainLayout', () => {
       },
     ]
 
-    testCases.forEach(({ name, files, expected }) => {
+    testCases.forEach(({ name: _name, files, expected }) => {
       ;(useInfraStore as jest.Mock).mockImplementation((selector) => {
         const state = { files }
         return selector ? selector(state) : state
@@ -228,7 +228,7 @@ describe('MainLayout', () => {
         },
       ]
 
-      testCases.forEach(({ name, files, expected }) => {
+      testCases.forEach(({ name: _name, files, expected }) => {
         ;(useInfraStore as jest.Mock).mockImplementation((selector) => {
           const state = { files }
           return selector ? selector(state) : state
